@@ -289,35 +289,40 @@ const PROFILE = { ceiling: 140, units: "mph", sound: true, videoId: "" };
    speed:null => "hold the speed where your HR sits 135–140" */
 const WORKOUTS = [
   {
-    id:"discovery", title:"1 · MAF Pace Discovery", tag:"Do this first — finds your MAF speed", isTest:false,
+    id:"steady40", title:"1 · Steady Base — 40 min", tag:"Your main aerobic run · MAF pace ~4.2", isTest:false,
     stages:[
-      {name:"Warm-up walk",  type:"walk", speed:3.0, incline:1, sec:300, cue:"Easy walk. Let your heart rate settle."},
-      {name:"Brisk walk",    type:"walk", speed:3.5, incline:1, sec:180, cue:"Pick it up to a brisk walk."},
-      {name:"Easy jog 1",    type:"jog",  speed:4.0, incline:1, sec:180, cue:"Easy jog. Note your HR."},
-      {name:"Easy jog 2",    type:"jog",  speed:4.3, incline:1, sec:180, cue:"HR lags ~1–2 min — be patient."},
-      {name:"Easy jog 3",    type:"jog",  speed:4.6, incline:1, sec:180, cue:"Note your HR."},
-      {name:"Easy jog 4",    type:"jog",  speed:4.9, incline:1, sec:180, cue:"Stop stepping up once HR hits 138–140."},
-      {name:"Easy jog 5",    type:"jog",  speed:5.2, incline:1, sec:180, cue:"Only if HR is still under 138."},
-      {name:"MAF hold",      type:"hold", speed:null, incline:1, sec:600, cue:"Hold the speed where HR sits 135–140. THIS is your MAF pace — remember it!"},
-      {name:"Cool-down walk",type:"walk", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish. Well done."}
-    ]
-  },
-  {
-    id:"steady45", title:"2 · Steady Base — 45 min", tag:"Use after discovery (speed is an estimate for now)", isTest:false,
-    stages:[
-      {name:"Warm-up walk",  type:"walk", speed:3.2, incline:1, sec:300, cue:"Easy walk."},
-      {name:"Ease in",       type:"jog",  speed:4.3, incline:1, sec:300, cue:"Settle into an easy jog."},
-      {name:"MAF steady",    type:"jog",  speed:4.6, incline:1, sec:1800, cue:"Hold MAF pace. Keep HR 130–140. Over 140 → slow down."},
+      {name:"Warm-up walk",  type:"walk", speed:3.2, incline:1, sec:300, cue:"Easy walk. Let your heart rate settle."},
+      {name:"Ease in",       type:"jog",  speed:3.8, incline:1, sec:300, cue:"Settle into an easy shuffle."},
+      {name:"MAF steady",    type:"jog",  speed:4.2, incline:1, sec:1500, cue:"Hold HR 130–140. If it climbs over 140, drop to 4.0. This is the work."},
       {name:"Cool-down walk",type:"walk", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
     ]
   },
   {
-    id:"maftest", title:"3 · Monthly MAF Test", tag:"Once a month — log the speed that holds HR at the ceiling", isTest:true,
+    id:"long60", title:"2 · Long Steady — 60 min", tag:"Once a week · let pace ease as HR drifts", isTest:false,
     stages:[
       {name:"Warm-up walk",  type:"walk", speed:3.2, incline:1, sec:300, cue:"Easy walk."},
-      {name:"Build",         type:"jog",  speed:4.3, incline:1, sec:300, cue:"Ease up toward MAF."},
-      {name:"Settle at MAF", type:"hold", speed:null, incline:1, sec:300, cue:"Adjust speed so HR sits exactly at the ceiling."},
-      {name:"TEST hold",     type:"hold", speed:null, incline:1, sec:900, cue:"Hold HR at the ceiling 15 min. Note the speed — that's your score."},
+      {name:"Ease in",       type:"jog",  speed:3.8, incline:1, sec:300, cue:"Easy shuffle."},
+      {name:"MAF steady",    type:"jog",  speed:4.1, incline:1, sec:2700, cue:"Hold HR 130–138. As HR drifts up over the hour, DROP the speed — chase the heart rate, not the pace."},
+      {name:"Cool-down walk",type:"walk", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish. Great work."}
+    ]
+  },
+  {
+    id:"steady45", title:"3 · Steady + Sweet Spot — 45 min", tag:"MAF run with a top-of-zone finish", isTest:false,
+    stages:[
+      {name:"Warm-up walk",  type:"walk", speed:3.2, incline:1, sec:300, cue:"Easy walk."},
+      {name:"Ease in",       type:"jog",  speed:3.8, incline:1, sec:300, cue:"Easy shuffle."},
+      {name:"MAF steady",    type:"jog",  speed:4.2, incline:1, sec:1200, cue:"Hold HR 130–140."},
+      {name:"Sweet spot",    type:"jog",  speed:4.3, incline:1, sec:600, cue:"Nudge to 4.3 — aim for 137–140, the top of the zone. Stay UNDER 140."},
+      {name:"Cool-down walk",type:"walk", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
+    ]
+  },
+  {
+    id:"maftest", title:"4 · Monthly MAF Test", tag:"Once a month — log the speed that holds HR at 140", isTest:true,
+    stages:[
+      {name:"Warm-up walk",  type:"walk", speed:3.2, incline:1, sec:300, cue:"Easy walk."},
+      {name:"Build",         type:"jog",  speed:3.9, incline:1, sec:300, cue:"Ease up toward MAF."},
+      {name:"Settle at MAF", type:"hold", speed:4.3, incline:1, sec:300, cue:"Adjust speed (~4.3) so HR sits exactly at 140."},
+      {name:"TEST hold",     type:"hold", speed:null, incline:1, sec:900, cue:"Hold HR at 140 for 15 min. Note the treadmill speed — that's your score."},
       {name:"Cool-down walk",type:"walk", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
     ]
   }
