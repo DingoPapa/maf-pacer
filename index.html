@@ -64,6 +64,7 @@
   .hrchip.live .dot{background:var(--good); box-shadow:0 0 8px var(--good); animation:pulse 1s infinite;}
   .hrchip .bpm{font-size:26px; font-weight:800; font-variant-numeric:tabular-nums;}
   .hrchip .bpm.over{color:var(--over);}
+  .hrchip .bpm.near{color:var(--amber);}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
 
   /* Player */
@@ -87,6 +88,9 @@
   .metric .v.bpm{color:#9fb4ff;}
   .metric .v.bpm.over{color:var(--over);}
   .metric .v.bpm.under{color:var(--good);}
+  .metric .v.bpm.near{color:var(--amber);}
+  .metric .v.bpm.near,.metric .v.bpm.over{animation:hrpulse 1s infinite;}
+  @keyframes hrpulse{0%,100%{opacity:1;}50%{opacity:.4;}}
   .metric .k{font-size:10px; color:#c7d0f0; text-transform:uppercase; letter-spacing:.04em; margin-top:2px; min-height:13px;}
   .metric .step{display:flex; gap:6px; margin-top:8px;}
   .metric .step button{flex:1; padding:8px 0; font-size:22px; font-weight:800; border-radius:10px; line-height:1; background:#243056; border-color:#2f3d6b;}
@@ -226,6 +230,11 @@
       <div class="sub" style="margin-top:6px;">Your ceiling = 180 − age − adjustment. Update it here if it changes (e.g., on a birthday).</div>
     </div>
     <div class="card">
+      <label>Warn when within … bpm of the cap</label>
+      <input type="number" id="setWarn" inputmode="numeric">
+      <div class="sub" style="margin-top:6px;">Number turns amber + soft double-beep as you approach the ceiling, so you can ease off before going over. Default 3.</div>
+    </div>
+    <div class="card">
       <label>Treadmill speed units</label>
       <div class="toggle"><button id="unitMph" onclick="setUnits('mph')">mph</button><button id="unitKmh" onclick="setUnits('kmh')">km/h</button></div>
     </div>
@@ -260,6 +269,7 @@
       <ul style="padding-left:18px; line-height:1.6; font-size:14px;">
         <li><b>Auto-Lock = Never</b> (iPhone Settings → Display) and keep this page in front — backgrounding stops the timers and can drop the HR stream.</li>
         <li>The mph/incline numbers are <b>starting points</b>. HR is the boss: stay under 140 and let pace fall if it climbs.</li>
+        <li>The HR number turns <b style="color:#f59e0b">amber + soft double-beep</b> as you near the cap, then <b style="color:#ef4444">red + alarm</b> if you go over — ease off when you hear it.</li>
         <li>No Bluefy? Cues, timers, adjustments and logging still work in Safari — just type your Avg/Max HR from Polar Beat at the end.</li>
       </ul>
     </div>
@@ -275,7 +285,7 @@
    Claude edits the WORKOUTS below each cycle from your data.
    ============================================================ */
 
-const PROFILE = { ceiling:140, units:"mph", sound:true };
+const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3 };
 
 /* ---- WORKOUTS (Claude updates this list) ----
    stage = { name, type:'walk'|'jog'|'hold', speed:Number|null, incline:Number, sec:Number, cue:String }
@@ -325,7 +335,7 @@ const WORKOUTS = [
 const $ = id => document.getElementById(id);
 let cur=null, idx=0, endAt=0, remain=0, running=false, tick=null, audio=null, wakeLock=null;
 let recentSpeed=4.0, SESS=null;
-const HR = { device:null, char:null, bpm:null, connected:false, wasOver:false };
+const HR = { device:null, char:null, bpm:null, connected:false, zone:null, lastOverBeep:0 };
 
 /* ===================== INIT ===================== */
 function load(){
@@ -339,6 +349,7 @@ function applyProfileUI(){
   $("sweetTxt").textContent=(PROFILE.ceiling-5)+"–"+PROFILE.ceiling;
   $("mCeil").textContent=PROFILE.ceiling;
   $("setCeil").value=PROFILE.ceiling;
+  $("setWarn").value=PROFILE.warnMargin;
   document.querySelectorAll(".uLbl").forEach(e=>e.textContent=PROFILE.units);
   $("unitMph").classList.toggle("sel",PROFILE.units==="mph");
   $("unitKmh").classList.toggle("sel",PROFILE.units==="kmh");
@@ -347,7 +358,7 @@ function applyProfileUI(){
 }
 function setUnits(u){ PROFILE.units=u; applyProfileUI(); }
 function setSound(b){ PROFILE.sound=b; applyProfileUI(); }
-function applySettings(){ const c=parseInt($("setCeil").value,10); if(c>80&&c<210) PROFILE.ceiling=c; saveProfile(); applyProfileUI(); }
+function applySettings(){ const c=parseInt($("setCeil").value,10); if(c>80&&c<210) PROFILE.ceiling=c; const w=parseInt($("setWarn").value,10); if(w>=1&&w<=15) PROFILE.warnMargin=w; saveProfile(); applyProfileUI(); }
 function checkEnv(){
   const b=$("envBanner"); const secure=location.protocol==="https:"||location.hostname==="localhost";
   let msg="";
@@ -395,7 +406,7 @@ function newSession(w){
 
 /* ===================== PLAYER ===================== */
 function startWorkout(w){
-  cur=w; idx=0; running=false; recentSpeed=4.0; HR.wasOver=false;
+  cur=w; idx=0; running=false; recentSpeed=4.0; HR.zone=null; HR.lastOverBeep=0;
   SESS=newSession(w);
   $("plTitle").textContent=w.title;
   show("player"); loadStage(); $("btnPlay").textContent="Start";
@@ -544,21 +555,33 @@ function onHRValue(e){
   HR.bpm=bpm;
   if(running && SESS){
     SESS.hr.push({ t:Math.round(elapsedSec()), bpm, idx });
-    const over=bpm>PROFILE.ceiling;
-    if(over && !HR.wasOver) beep(440,250);   // single alert on crossing over
-    HR.wasOver=over;
+    const z=hrZone(bpm);
+    if(z!==HR.zone){
+      if(z==="near" && HR.zone!=="over") warnBeep();                    // approaching the cap
+      else if(z==="over"){ beep(440,260); HR.lastOverBeep=Date.now(); } // over the cap
+      else if(HR.zone==="over") beep(700,120);                          // dropped back under
+      HR.zone=z;
+    }
+    if(z==="over" && Date.now()-HR.lastOverBeep>=15000){ beep(440,260); HR.lastOverBeep=Date.now(); } // re-alarm if lingering over
   }
   setHRUI();
 }
+function hrZone(bpm){
+  if(bpm==null) return null;
+  const c=PROFILE.ceiling, m=PROFILE.warnMargin||3;
+  if(bpm>c) return "over";
+  if(bpm>=c-m) return "near";
+  return "under";
+}
+function warnBeep(){ beep(880,70); setTimeout(function(){beep(880,70);},110); }
 function setHRUI(){
-  const val=HR.bpm==null?"––":HR.bpm;
+  const val=HR.bpm==null?"––":HR.bpm, z=hrZone(HR.bpm);
   $("homeBpm").textContent=val;
   $("homeHrChip").classList.toggle("live",HR.connected);
   $("homeHrLabel").textContent=HR.connected?(HR.bpm!=null?"Live":"Connected"):"Not connected";
-  $("homeBpm").classList.toggle("over",HR.bpm!=null&&HR.bpm>PROFILE.ceiling);
+  const hb=$("homeBpm"); hb.classList.remove("over","near"); if(z==="over") hb.classList.add("over"); else if(z==="near") hb.classList.add("near");
   $("homeConnect").textContent=HR.connected?"Reconnect strap":"Connect Polar H10";
-  const m=$("mBpm"); m.textContent=val; m.classList.remove("over","under");
-  if(HR.bpm!=null) m.classList.add(HR.bpm>PROFILE.ceiling?"over":"under");
+  const m=$("mBpm"); m.textContent=val; m.classList.remove("over","under","near"); if(z) m.classList.add(z);
 }
 function onHRDisconnect(){ HR.connected=false; setHRUI(); toast("Strap disconnected — tap Reconnect"); }
 
