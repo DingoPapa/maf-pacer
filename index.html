@@ -145,7 +145,8 @@
       </div>
       <label for="musicFiles" style="display:block;text-align:center;margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:14px;cursor:pointer;font-weight:700;font-size:15px;">＋ Add MP3s (from Files / iCloud)</label>
       <input id="musicFiles" type="file" accept="audio/*" multiple style="display:none;" onchange="addTracks(this.files)">
-      <div id="trackList" style="margin-top:10px;"></div>
+      <div class="sub" style="margin-top:10px;">Tap 🌅 / 🔥 / 🌙 on a track to set its pool (Warm-up / Intense / Cool-down). During a run the player cycles only songs from the current phase's pool.</div>
+      <div id="trackList" style="margin-top:8px;"></div>
     </div>
 
     <h2>Today's workout</h2>
@@ -312,6 +313,7 @@
       <button class="btn-ghost" onclick="closeNP()" style="flex:0; padding:6px 14px;">✕ Close</button>
     </div>
     <div id="npTitle" style="font-size:20px; font-weight:800; margin:10px 0 4px;">—</div>
+    <div id="npPool" class="sub" style="margin-bottom:6px;"></div>
     <input id="npSeek" type="range" min="0" max="1000" value="0" oninput="seekMusic(this.value)">
     <div style="display:flex; justify-content:space-between;"><span class="sub" id="npCur">0:00</span><span class="sub" id="npDur">0:00</span></div>
     <div style="display:flex; gap:10px; margin-top:12px;">
@@ -340,47 +342,39 @@ const WORKOUTS = [
   {
     id:"steady40", title:"1 · Steady Base — 40 min", tag:"Your main aerobic run · MAF pace ~4.2", isTest:false,
     stages:[
-      {name:"Warm-up walk",  type:"walk", speed:3.2, incline:1, sec:300, cue:"Easy walk. Let your heart rate settle."},
-      {name:"Ease in",       type:"jog",  speed:3.8, incline:1, sec:300, cue:"Settle into an easy shuffle."},
-      {name:"MAF steady",    type:"jog",  speed:4.2, incline:1, sec:1500, cue:"Hold HR 130–140. If it climbs over 140, drop the speed. This is the work."},
-      {name:"Cool-down walk",type:"walk", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
+      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk. Let your heart rate settle."},
+      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.8, incline:1, sec:300, cue:"Settle into an easy shuffle."},
+      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.2, incline:1, sec:1500, cue:"Hold HR 130–140. If it climbs over 140, drop the speed. This is the work."},
+      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
     ]
   },
   {
     id:"long60", title:"2 · Long Steady — 60 min", tag:"Once a week · let pace ease as HR drifts", isTest:false,
     stages:[
-      {name:"Warm-up walk",  type:"walk", speed:3.2, incline:1, sec:300, cue:"Easy walk."},
-      {name:"Ease in",       type:"jog",  speed:3.8, incline:1, sec:300, cue:"Easy shuffle."},
-      {name:"MAF steady",    type:"jog",  speed:4.1, incline:1, sec:2700, cue:"Hold HR 130–138. As HR drifts up over the hour, DROP the speed — chase the heart rate, not the pace."},
-      {name:"Cool-down walk",type:"walk", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish. Great work."}
+      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk."},
+      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.8, incline:1, sec:300, cue:"Easy shuffle."},
+      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.1, incline:1, sec:2700, cue:"Hold HR 130–138. As HR drifts up over the hour, DROP the speed — chase the heart rate, not the pace."},
+      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish. Great work."}
     ]
   },
   {
     id:"steady45", title:"3 · Steady + Sweet Spot — 45 min", tag:"MAF run with a top-of-zone finish", isTest:false,
     stages:[
-      {name:"Warm-up walk",  type:"walk", speed:3.2, incline:1, sec:300, cue:"Easy walk."},
-      {name:"Ease in",       type:"jog",  speed:3.8, incline:1, sec:300, cue:"Easy shuffle."},
-      {name:"MAF steady",    type:"jog",  speed:4.2, incline:1, sec:1200, cue:"Hold HR 130–140."},
-      {name:"Sweet spot",    type:"jog",  speed:4.3, incline:1, sec:600, cue:"Nudge to 4.3 — aim for 137–140, the top of the zone. Stay UNDER 140."},
-      {name:"Cool-down walk",type:"walk", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
+      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk."},
+      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.8, incline:1, sec:300, cue:"Easy shuffle."},
+      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.2, incline:1, sec:1200, cue:"Hold HR 130–140."},
+      {name:"Sweet spot",    type:"jog",  mood:"intense",  speed:4.3, incline:1, sec:600, cue:"Nudge to 4.3 — aim for 137–140, the top of the zone. Stay UNDER 140."},
+      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
     ]
   },
   {
     id:"maftest", title:"4 · Monthly MAF Test", tag:"Once a month — log the speed that holds HR at 140", isTest:true,
     stages:[
-      {name:"Warm-up walk",  type:"walk", speed:3.2, incline:1, sec:300, cue:"Easy walk."},
-      {name:"Build",         type:"jog",  speed:3.9, incline:1, sec:300, cue:"Ease up toward MAF."},
-      {name:"Settle at MAF", type:"hold", speed:null, incline:1, sec:300, cue:"Use the steppers — set the speed so HR sits exactly at 140."},
-      {name:"TEST hold",     type:"hold", speed:null, incline:1, sec:900, cue:"Hold HR at 140 for 15 min. The speed you settle on is your score (it's logged)."},
-      {name:"Cool-down walk",type:"walk", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
-    ]
-  },
-  {
-    id:"warntest", title:"🔧 Warning Test (cap 60)", tag:"Temporary — fake low cap to trigger the alarm, then ignore", isTest:false, cap:60,
-    stages:[
-      {name:"Move a little", type:"walk", speed:2.5, incline:0, sec:90, cue:"Cap is a fake 60, so you'll go RED + alarm almost immediately — that's the over-cap alert. Listen for it."},
-      {name:"Keep going",    type:"walk", speed:3.0, incline:0, sec:90, cue:"Stay above 60 — it re-alarms every ~15s while you're over. That's the lingering-over reminder."},
-      {name:"Done",          type:"walk", speed:2.5, incline:0, sec:60, cue:"Test complete 🎉 This 60 cap is just the demo — your real workouts use 140."}
+      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk."},
+      {name:"Build",         type:"jog",  mood:"warmup",   speed:3.9, incline:1, sec:300, cue:"Ease up toward MAF."},
+      {name:"Settle at MAF", type:"hold", mood:"intense",  speed:null, incline:1, sec:300, cue:"Use the steppers — set the speed so HR sits exactly at 140."},
+      {name:"TEST hold",     type:"hold", mood:"intense",  speed:null, incline:1, sec:900, cue:"Hold HR at 140 for 15 min. The speed you settle on is your score (it's logged)."},
+      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
     ]
   }
 ];
@@ -426,7 +420,7 @@ function checkEnv(){
 function show(s){
   document.querySelectorAll(".screen").forEach(e=>e.classList.remove("active"));
   $(s).classList.add("active"); window.scrollTo(0,0);
-  if(s==="home") cur=null;
+  if(s==="home"){ cur=null; currentMood=null; }
   if(s==="history") renderHistory();
 }
 
@@ -487,6 +481,7 @@ function loadStage(){
   const n=cur.stages[idx+1];
   $("nextLine").textContent = n ? `Up next: ${n.name} · ${n.speed===null?"hold":n.speed.toFixed(1)+" "+PROFILE.units} · ${n.incline}%` : "Up next: finish 🏁";
   updateProgress();
+  reactToMood();   // switch the music pool to match this stage's intensity
 }
 function renderStageValues(){
   const s=cur.stages[idx], a=SESS.actuals[idx];
@@ -789,7 +784,7 @@ let toastT=null;
 function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),1600); }
 
 /* ===================== MUSIC (your Suno MP3s, stored on-device in IndexedDB) ===================== */
-let mdb=null, playlist=[], curTrack=-1, curUrl=null, musicPlaying=false, duckT=null;
+let mdb=null, playlist=[], curTrack=-1, curUrl=null, musicPlaying=false, duckT=null, currentMood=null;
 function openDB(){
   return new Promise(function(res,rej){
     try{
@@ -805,7 +800,7 @@ function loadPlaylist(){
   return new Promise(function(res){
     if(!mdb){ playlist=[]; res([]); return; }
     var out=[], req=mtx("readonly").openCursor();
-    req.onsuccess=function(e){ var c=e.target.result; if(c){ out.push({id:c.value.id,name:c.value.name}); c.continue(); } else { playlist=out; res(out); } };
+    req.onsuccess=function(e){ var c=e.target.result; if(c){ out.push({id:c.value.id,name:c.value.name,cat:c.value.cat||"intense"}); c.continue(); } else { playlist=out; res(out); } };
     req.onerror=function(){ playlist=[]; res([]); };
   });
 }
@@ -814,12 +809,20 @@ async function addTracks(files){
   if(!mdb){ try{ await openDB(); }catch(e){ toast("Storage unavailable"); return; } }
   var n=0;
   for(var i=0;i<files.length;i++){ var f=files[i];
-    try{ var buf=await f.arrayBuffer(); await idbPut({ id:f.name+"::"+f.size, name:f.name.replace(/\.[^.]+$/,""), type:f.type||"audio/mpeg", buf:buf }); n++; }catch(e){}
+    try{ var buf=await f.arrayBuffer(); await idbPut({ id:f.name+"::"+f.size, name:f.name.replace(/\.[^.]+$/,""), type:f.type||"audio/mpeg", cat:"intense", buf:buf }); n++; }catch(e){}
   }
   await loadPlaylist(); renderMusic(); toast(n+" track"+(n===1?"":"s")+" added");
 }
 function getBlob(id){
   return new Promise(function(res){ var r=mtx("readonly").get(id); r.onsuccess=function(e){ var v=e.target.result; res(v? new Blob([v.buf],{type:v.type||"audio/mpeg"}):null); }; r.onerror=function(){res(null);}; });
+}
+function idbGet(id){ return new Promise(function(res){ var r=mtx("readonly").get(id); r.onsuccess=function(e){res(e.target.result||null);}; r.onerror=function(){res(null);}; }); }
+async function cycleCat(id){
+  var order=["warmup","intense","cooldown"];
+  var rec=await idbGet(id); if(!rec) return;
+  rec.cat=order[(order.indexOf(rec.cat||"intense")+1)%order.length];
+  try{ await idbPut(rec); }catch(e){}
+  await loadPlaylist(); renderMusic();
 }
 async function removeTrack(id){
   if(playlist[curTrack] && playlist[curTrack].id===id) stopMusic();
@@ -845,8 +848,9 @@ async function playTrack(i){
 async function cueFirstTrack(){
   if(!playlist.length) return;
   var a=$("audioEl"); if(curTrack>=0 || a.src) return;   // already have a track loaded → leave it
-  var blob=await getBlob(playlist[0].id); if(!blob) return;
-  curTrack=0; if(curUrl) URL.revokeObjectURL(curUrl); curUrl=URL.createObjectURL(blob); a.src=curUrl;
+  var p0=poolIndices(); var i=p0.length?p0[0]:0;
+  var blob=await getBlob(playlist[i].id); if(!blob) return;
+  curTrack=i; if(curUrl) URL.revokeObjectURL(curUrl); curUrl=URL.createObjectURL(blob); a.src=curUrl;
   setMediaSession(); updateMusicUI(); renderMusic();
 }
 function toggleMusic(){
@@ -855,8 +859,23 @@ function toggleMusic(){
   if(a.paused){ if(curTrack<0) playTrack(0); else a.play().catch(function(){}); }
   else a.pause();
 }
-function nextTrack(){ if(playlist.length) playTrack(curTrack+1); }
-function prevTrack(){ if(playlist.length) playTrack(curTrack-1); }
+function moodName(c){ return c==="warmup"?"Warm-up":c==="cooldown"?"Cool-down":"Intense"; }
+function poolIndices(){
+  var p=[]; for(var i=0;i<playlist.length;i++){ if(playlist[i].cat===currentMood) p.push(i); }
+  if(!p.length) for(var j=0;j<playlist.length;j++) p.push(j);   // fallback: whole library (no silence)
+  return p;
+}
+function nextTrack(){ var p=poolIndices(); if(!p.length) return; var pos=p.indexOf(curTrack); playTrack(p[pos<0?0:(pos+1)%p.length]); }
+function prevTrack(){ var p=poolIndices(); if(!p.length) return; var pos=p.indexOf(curTrack); playTrack(p[pos<0?0:(pos-1+p.length)%p.length]); }
+function playFromPool(){ var p=poolIndices(); if(p.length) playTrack(p[0]); }
+function reactToMood(){
+  if(!cur){ currentMood=null; updateMusicUI(); return; }
+  var s=cur.stages[idx];
+  currentMood = s.mood || (s.type==="walk"?"warmup":"intense");
+  var a=$("audioEl");
+  if(!a.paused && curTrack>=0 && playlist[curTrack] && poolIndices().indexOf(curTrack)<0) playFromPool(); // wrong pool → switch
+  updateMusicUI();
+}
 function stopMusic(){ var a=$("audioEl"); try{a.pause();}catch(e){} a.removeAttribute("src"); if(curUrl){URL.revokeObjectURL(curUrl); curUrl=null;} curTrack=-1; musicPlaying=false; updateMusicUI(); }
 /* iOS web apps can't change media volume (hardware-locked), so "duck" = a brief pause so the alarm cuts through. */
 function duck(){ var a=$("audioEl"); if(!a||a.paused) return; a.pause(); clearTimeout(duckT); duckT=setTimeout(function(){ a.play().catch(function(){}); },700); }
@@ -891,12 +910,19 @@ function updateMusicUI(){
   if($("playBtnPl")) $("playBtnPl").textContent=musicPlaying?"⏸":"▶";
   if($("npPlay")) $("npPlay").textContent=musicPlaying?"⏸ Pause":"▶ Play";
   if($("musicBar")) $("musicBar").style.display=playlist.length?"flex":"none";
+  if($("npPool")){
+    if(currentMood){ var tg=playlist.filter(function(t){return t.cat===currentMood;}).length;
+      $("npPool").textContent="Phase pool: "+catLabel(currentMood)+" "+moodName(currentMood)+(tg?(" ("+tg+" song"+(tg===1?"":"s")+")"):" (none tagged — using all)");
+    } else $("npPool").textContent="";
+  }
 }
+function catLabel(c){ return c==="warmup"?"🌅":c==="cooldown"?"🌙":"🔥"; }
 function trackRow(t,i){
   var row=document.createElement("div"); row.className="histitem";
   var nm=document.createElement("div"); nm.style.cssText="flex:1;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"; nm.textContent=(i===curTrack?"▶ ":"")+t.name; nm.onclick=function(){ playTrack(i); };
+  var cat=document.createElement("button"); cat.className="btn-ghost"; cat.style.cssText="flex:0;padding:4px 8px;font-size:15px;"; cat.textContent=catLabel(t.cat); cat.title="Pool: "+moodName(t.cat)+" — tap to change"; cat.onclick=function(ev){ ev.stopPropagation(); cycleCat(t.id); };
   var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.onclick=function(){ removeTrack(t.id); };
-  row.appendChild(nm); row.appendChild(del); return row;
+  row.appendChild(nm); row.appendChild(cat); row.appendChild(del); return row;
 }
 function renderMusic(){
   [["trackList",true],["npList",false]].forEach(function(p){
