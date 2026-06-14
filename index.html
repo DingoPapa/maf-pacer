@@ -105,6 +105,9 @@
   .toast.show{opacity:1;}
   .histitem{display:flex; justify-content:space-between; gap:8px; padding:10px 0; border-bottom:1px solid var(--line); font-size:14px;}
   .histitem small{color:var(--muted);}
+  .np{position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:flex-end; z-index:60;}
+  .np-card{background:var(--panel); border:1px solid var(--line); border-radius:20px 20px 0 0; padding:16px; width:100%; max-width:560px; margin:0 auto; max-height:85vh; overflow:auto;}
+  .np input[type=range]{width:100%; accent-color:var(--accent); height:30px; margin:6px 0;}
 </style>
 </head>
 <body>
@@ -196,11 +199,11 @@
       <button class="btn-primary" id="btnPlay" onclick="togglePlay()">Start</button>
       <button class="btn-ghost" id="btnNext" onclick="skipStage()">▸</button>
     </div>
-    <div id="musicBar" style="display:none; align-items:center; gap:8px; padding:2px 14px 4px;">
-      <button class="btn-ghost" onclick="prevTrack()" style="flex:0; padding:8px 10px; font-size:14px;">⏮</button>
-      <button class="btn-ghost" id="playBtnPl" onclick="toggleMusic()" style="flex:0; padding:8px 14px; font-size:14px;">▶</button>
-      <button class="btn-ghost" onclick="nextTrack()" style="flex:0; padding:8px 10px; font-size:14px;">⏭</button>
-      <div class="sub" id="trackNowPl" style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">♪</div>
+    <div id="musicBar" style="display:none; align-items:center; gap:10px; padding:2px 14px 6px;">
+      <button class="btn-ghost" onclick="prevTrack()" style="flex:0; padding:10px 12px; font-size:18px;">⏮</button>
+      <button class="btn-ghost" id="playBtnPl" onclick="toggleMusic()" style="flex:0; padding:10px 16px; font-size:18px;">▶</button>
+      <button class="btn-ghost" onclick="nextTrack()" style="flex:0; padding:10px 12px; font-size:18px;">⏭</button>
+      <button class="btn-ghost" onclick="openNP()" style="flex:1; text-align:left; padding:10px 12px; overflow:hidden;"><span class="sub" id="trackNowPl" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;">♪ Tap for player</span></button>
     </div>
     <div style="padding:6px 14px calc(12px + env(safe-area-inset-bottom));"><button class="btn-danger" style="width:100%;" onclick="endWorkout(true)">Finish & log</button></div>
   </section>
@@ -302,6 +305,24 @@
 
 </div>
 <audio id="audioEl" preload="metadata"></audio>
+<div class="np" id="nowPlaying" onclick="if(event.target===this)closeNP()">
+  <div class="np-card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div class="sub">Now playing</div>
+      <button class="btn-ghost" onclick="closeNP()" style="flex:0; padding:6px 14px;">✕ Close</button>
+    </div>
+    <div id="npTitle" style="font-size:20px; font-weight:800; margin:10px 0 4px;">—</div>
+    <input id="npSeek" type="range" min="0" max="1000" value="0" oninput="seekMusic(this.value)">
+    <div style="display:flex; justify-content:space-between;"><span class="sub" id="npCur">0:00</span><span class="sub" id="npDur">0:00</span></div>
+    <div style="display:flex; gap:10px; margin-top:12px;">
+      <button class="btn-ghost" onclick="prevTrack()" style="flex:1; font-size:24px; padding:14px 0;">⏮</button>
+      <button class="btn-good" id="npPlay" onclick="toggleMusic()" style="flex:2; font-size:17px;">▶ Play</button>
+      <button class="btn-ghost" onclick="nextTrack()" style="flex:1; font-size:24px; padding:14px 0;">⏭</button>
+    </div>
+    <div class="sub" style="margin-top:16px;">Tracks — tap to play:</div>
+    <div id="npList" style="margin-top:6px;"></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -606,11 +627,11 @@ function onHRValue(e){
     const z=hrZone(bpm);
     if(z!==HR.zone){
       if(z==="near" && HR.zone!=="over") warnBeep();                    // approaching the cap
-      else if(z==="over"){ overAlarm(); HR.lastOverBeep=Date.now(); }   // over the cap
+      else if(z==="over"){ overAlarm(true); HR.lastOverBeep=Date.now(); } // over the cap — alarm + brief music duck
       else if(HR.zone==="over") beep(700,120);                          // dropped back under
       HR.zone=z;
     }
-    if(z==="over" && Date.now()-HR.lastOverBeep>=15000){ overAlarm(); HR.lastOverBeep=Date.now(); } // re-alarm if lingering over
+    if(z==="over" && Date.now()-HR.lastOverBeep>=15000){ overAlarm(false); HR.lastOverBeep=Date.now(); } // re-alarm (no music interrupt) if lingering over
   }
   setHRUI();
 }
@@ -822,8 +843,19 @@ function toggleMusic(){
 function nextTrack(){ if(playlist.length) playTrack(curTrack+1); }
 function prevTrack(){ if(playlist.length) playTrack(curTrack-1); }
 function stopMusic(){ var a=$("audioEl"); try{a.pause();}catch(e){} a.removeAttribute("src"); if(curUrl){URL.revokeObjectURL(curUrl); curUrl=null;} curTrack=-1; musicPlaying=false; updateMusicUI(); }
-function duck(){ var a=$("audioEl"); if(!a||a.paused) return; a.volume=0.2; clearTimeout(duckT); duckT=setTimeout(function(){ try{a.volume=1;}catch(e){} },800); }
-function overAlarm(){ beep(440,260); duck(); }
+/* iOS web apps can't change media volume (hardware-locked), so "duck" = a brief pause so the alarm cuts through. */
+function duck(){ var a=$("audioEl"); if(!a||a.paused) return; a.pause(); clearTimeout(duckT); duckT=setTimeout(function(){ a.play().catch(function(){}); },700); }
+function overAlarm(duckIt){ beep(440,260); setTimeout(function(){beep(440,260);},300); if(duckIt) duck(); }
+function fmtTime(s){ s=Math.floor(s||0); if(isNaN(s)||s<0) s=0; return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+function onTimeUpdate(){
+  var a=$("audioEl"), dur=a.duration;
+  if($("npCur")) $("npCur").textContent=fmtTime(a.currentTime);
+  if($("npDur")) $("npDur").textContent=fmtTime(dur);
+  var sk=$("npSeek"); if(sk && dur && !isNaN(dur) && document.activeElement!==sk) sk.value=Math.round((a.currentTime/dur)*1000);
+}
+function seekMusic(v){ var a=$("audioEl"); if(a.duration && !isNaN(a.duration)) a.currentTime=(v/1000)*a.duration; }
+function openNP(){ if(!playlist.length){ toast("Add MP3s first"); return; } renderMusic(); onTimeUpdate(); $("nowPlaying").style.display="flex"; }
+function closeNP(){ $("nowPlaying").style.display="none"; }
 function setMediaSession(){
   if(!("mediaSession" in navigator)) return;
   try{
@@ -835,23 +867,29 @@ function setMediaSession(){
   }catch(e){}
 }
 function updateMusicUI(){
-  var nm=(curTrack>=0&&playlist[curTrack])?playlist[curTrack].name:(playlist.length?(playlist.length+" track"+(playlist.length===1?"":"s")+" ready"):"No music loaded");
+  var cur1=(curTrack>=0&&playlist[curTrack])?playlist[curTrack].name:null;
+  var nm=cur1||(playlist.length?(playlist.length+" track"+(playlist.length===1?"":"s")+" ready"):"No music loaded");
   if($("trackNow")) $("trackNow").textContent=nm;
-  if($("trackNowPl")) $("trackNowPl").textContent=(curTrack>=0&&playlist[curTrack])?("♪ "+playlist[curTrack].name):"♪";
+  if($("trackNowPl")) $("trackNowPl").textContent=cur1?("♪ "+cur1):"♪ Tap for player";
+  if($("npTitle")) $("npTitle").textContent=cur1||(playlist.length?"Nothing playing yet":"No music");
   if($("playBtn")) $("playBtn").textContent=musicPlaying?"⏸ Pause":"▶ Play";
   if($("playBtnPl")) $("playBtnPl").textContent=musicPlaying?"⏸":"▶";
+  if($("npPlay")) $("npPlay").textContent=musicPlaying?"⏸ Pause":"▶ Play";
   if($("musicBar")) $("musicBar").style.display=playlist.length?"flex":"none";
 }
+function trackRow(t,i){
+  var row=document.createElement("div"); row.className="histitem";
+  var nm=document.createElement("div"); nm.style.cssText="flex:1;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"; nm.textContent=(i===curTrack?"▶ ":"")+t.name; nm.onclick=function(){ playTrack(i); };
+  var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.onclick=function(){ removeTrack(t.id); };
+  row.appendChild(nm); row.appendChild(del); return row;
+}
 function renderMusic(){
-  var list=$("trackList"); if(!list) return; list.innerHTML="";
-  if(!playlist.length){ list.innerHTML='<div class="empty">No tracks yet. Add your Suno MP3s — they stay on this device.</div>'; updateMusicUI(); return; }
-  playlist.forEach(function(t,i){
-    var row=document.createElement("div"); row.className="histitem";
-    var nm=document.createElement("div"); nm.style.cssText="flex:1;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"; nm.textContent=(i===curTrack?"▶ ":"")+t.name; nm.onclick=function(){ playTrack(i); };
-    var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.onclick=function(){ removeTrack(t.id); };
-    row.appendChild(nm); row.appendChild(del); list.appendChild(row);
+  [["trackList",true],["npList",false]].forEach(function(p){
+    var el=$(p[0]); if(!el) return; el.innerHTML="";
+    if(!playlist.length){ el.innerHTML='<div class="empty">No tracks yet. Add your Suno MP3s — they stay on this device.</div>'; return; }
+    playlist.forEach(function(t,i){ el.appendChild(trackRow(t,i)); });
+    if(p[1]){ var c=document.createElement("button"); c.className="btn-ghost"; c.style.cssText="width:100%;margin-top:8px;font-size:13px;"; c.textContent="Clear all music"; c.onclick=clearMusic; el.appendChild(c); }
   });
-  var c=document.createElement("button"); c.className="btn-ghost"; c.style.cssText="width:100%;margin-top:8px;font-size:13px;"; c.textContent="Clear all music"; c.onclick=clearMusic; list.appendChild(c);
   updateMusicUI();
 }
 function initMusic(){
@@ -859,6 +897,8 @@ function initMusic(){
   a.addEventListener("ended", nextTrack);
   a.addEventListener("play", function(){ musicPlaying=true; updateMusicUI(); renderMusic(); });
   a.addEventListener("pause", function(){ musicPlaying=false; updateMusicUI(); });
+  a.addEventListener("timeupdate", onTimeUpdate);
+  a.addEventListener("loadedmetadata", onTimeUpdate);
   openDB().then(loadPlaylist).then(function(){ renderMusic(); }).catch(function(){ renderMusic(); });
 }
 
