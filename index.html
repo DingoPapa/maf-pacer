@@ -328,6 +328,16 @@ const WORKOUTS = [
       {name:"TEST hold",     type:"hold", speed:null, incline:1, sec:900, cue:"Hold HR at 140 for 15 min. The speed you settle on is your score (it's logged)."},
       {name:"Cool-down walk",type:"walk", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
     ]
+  },
+  {
+    id:"warntest", title:"🔧 Warning Test (cap 110)", tag:"Temporary — feel the warning + alarm, then ignore", isTest:false, cap:110,
+    stages:[
+      {name:"Slow walk",  type:"walk", speed:2.8, incline:0, sec:120, cue:"Easy walk — keep the number GREEN. (If it's amber already, ease off; this test cap is low on purpose.)"},
+      {name:"Brisk walk", type:"walk", speed:3.8, incline:1, sec:150, cue:"Speed up until the number turns AMBER with a soft double-beep — that's the approaching-cap warning."},
+      {name:"Push over",  type:"jog",  speed:4.6, incline:2, sec:120, cue:"Go a little harder until it turns RED and alarms (over 110). Hold a few sec — it re-alarms ~every 15s."},
+      {name:"Recover",    type:"walk", speed:3.0, incline:0, sec:120, cue:"Slow right down. When you drop back under 110 you'll hear the soft 'recovered' beep."},
+      {name:"Done",       type:"walk", speed:2.5, incline:0, sec:60,  cue:"Test complete 🎉 Use your real workouts to train — this 110 cap is just the demo."}
+    ]
   }
 ];
 
@@ -417,6 +427,7 @@ function loadStage(){
   $("stageName").textContent=s.name;
   $("cue").textContent=s.cue;
   $("stageCard").className="stagecard "+s.type;
+  $("mCeil").textContent=activeCeiling();
   if(s.speed!=null) recentSpeed = (a.speed!=null?a.speed:s.speed);
   renderStageValues();
   remain=s.sec; renderTimer();
@@ -492,7 +503,7 @@ function flash(){ const c=$("stageCard"); c.classList.remove("flash"); void c.of
 
 /* ===================== STATS ===================== */
 function computeStats(){
-  const cl=PROFILE.ceiling, all=SESS.hr;
+  const cl=activeCeiling(), all=SESS.hr;
   const per=SESS.plan.map((p,i)=>({ name:p.name, speed:p.speed, incline:p.incline, sec:p.sec, actual:SESS.actuals[i], samples:[], over:0, avg:null, max:null, min:null }));
   let overTotal=0;
   for(let k=0;k<all.length;k++){
@@ -521,7 +532,7 @@ function endWorkout(manual){
   const st=SESS.stats;
   if(st.avg!=null){
     $("inAvg").value=st.avg; $("inMax").value=st.max;
-    $("autoNote").textContent=`Auto-logged from strap · avg ${st.avg}, max ${st.max}, min ${st.min}, ${(st.overTotal/60).toFixed(1)} min over ${PROFILE.ceiling}.`;
+    $("autoNote").textContent=`Auto-logged from strap · avg ${st.avg}, max ${st.max}, min ${st.min}, ${(st.overTotal/60).toFixed(1)} min over ${activeCeiling()}.`;
     $("autoNote").style.display="block";
   }
   // suggest MAF speed = final speed of the last hold/test stage (else the longest jog stage's actual)
@@ -566,9 +577,10 @@ function onHRValue(e){
   }
   setHRUI();
 }
+function activeCeiling(){ return (cur && cur.cap) ? cur.cap : PROFILE.ceiling; }
 function hrZone(bpm){
   if(bpm==null) return null;
-  const c=PROFILE.ceiling, m=PROFILE.warnMargin||3;
+  const c=activeCeiling(), m=PROFILE.warnMargin||3;
   if(bpm>c) return "over";
   if(bpm>=c-m) return "near";
   return "under";
@@ -615,7 +627,7 @@ function saveSession(){
   const arr=sessions(), st=SESS?SESS.stats:null;
   arr.unshift({
     date:new Date().toISOString(), title:pendingTitle, isTest:pendingIsTest,
-    ceiling:PROFILE.ceiling, units:PROFILE.units, durationSec:SESS?SESS.endSec:null,
+    ceiling:activeCeiling(), units:PROFILE.units, durationSec:SESS?SESS.endSec:null,
     avg:numOrNull($("inAvg").value), max:numOrNull($("inMax").value),
     min:st?st.min:null, overSec:st?st.overTotal:null,
     mafSpeed:numOrNull($("inMaf").value), rpe:numOrNull($("inRpe").value), notes:$("inNotes").value.trim(),
@@ -661,8 +673,8 @@ function copyLog(){
   L.push("MAF Pacer — session");
   L.push("Date: "+new Date().toLocaleString());
   L.push("Workout: "+pendingTitle);
-  L.push("MAF ceiling: "+PROFILE.ceiling+" bpm");
-  if(st && st.avg!=null) L.push(`Overall HR: avg ${st.avg}, max ${st.max}, min ${st.min} | ${(st.overTotal/60).toFixed(1)} min over ${PROFILE.ceiling} | duration ${fmt(SESS.endSec)}`);
+  L.push("MAF ceiling: "+activeCeiling()+" bpm");
+  if(st && st.avg!=null) L.push(`Overall HR: avg ${st.avg}, max ${st.max}, min ${st.min} | ${(st.overTotal/60).toFixed(1)} min over ${activeCeiling()} | duration ${fmt(SESS.endSec)}`);
   else L.push("Overall HR: avg "+($("inAvg").value||"?")+", max "+($("inMax").value||"?")+" (entered manually)");
   L.push("");
   if(st){
