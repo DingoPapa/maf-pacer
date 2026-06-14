@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; media-src blob:; connect-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <script>if(self!==top){try{top.location=self.location}catch(e){}document.documentElement.style.display="none";}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
@@ -132,6 +132,19 @@
       <button class="btn-good" id="homeConnect" style="width:100%; margin-top:10px;" onclick="connectHR()">Connect Polar H10</button>
     </div>
 
+    <h2>Music <span class="sub" style="text-transform:none;">(your Suno MP3s, on-device)</span></h2>
+    <div class="card">
+      <div id="trackNow" class="sub" style="margin-bottom:8px;">No music loaded</div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button class="btn-ghost" onclick="prevTrack()" style="flex:0; padding:10px 14px;">⏮</button>
+        <button class="btn-good" id="playBtn" onclick="toggleMusic()" style="flex:1;">▶ Play</button>
+        <button class="btn-ghost" onclick="nextTrack()" style="flex:0; padding:10px 14px;">⏭</button>
+      </div>
+      <label for="musicFiles" style="display:block;text-align:center;margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:14px;cursor:pointer;font-weight:700;font-size:15px;">＋ Add MP3s (from Files / iCloud)</label>
+      <input id="musicFiles" type="file" accept="audio/*" multiple style="display:none;" onchange="addTracks(this.files)">
+      <div id="trackList" style="margin-top:10px;"></div>
+    </div>
+
     <h2>Today's workout</h2>
     <div id="todayWorkout"></div>
 
@@ -182,6 +195,12 @@
       <button class="btn-ghost" id="btnPrev" onclick="prevStage()">◂</button>
       <button class="btn-primary" id="btnPlay" onclick="togglePlay()">Start</button>
       <button class="btn-ghost" id="btnNext" onclick="skipStage()">▸</button>
+    </div>
+    <div id="musicBar" style="display:none; align-items:center; gap:8px; padding:2px 14px 4px;">
+      <button class="btn-ghost" onclick="prevTrack()" style="flex:0; padding:8px 10px; font-size:14px;">⏮</button>
+      <button class="btn-ghost" id="playBtnPl" onclick="toggleMusic()" style="flex:0; padding:8px 14px; font-size:14px;">▶</button>
+      <button class="btn-ghost" onclick="nextTrack()" style="flex:0; padding:8px 10px; font-size:14px;">⏭</button>
+      <div class="sub" id="trackNowPl" style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">♪</div>
     </div>
     <div style="padding:6px 14px calc(12px + env(safe-area-inset-bottom));"><button class="btn-danger" style="width:100%;" onclick="endWorkout(true)">Finish & log</button></div>
   </section>
@@ -275,12 +294,14 @@
         <li>The mph/incline numbers are <b>starting points</b>. HR is the boss: stay under 140 and let pace fall if it climbs.</li>
         <li>The HR number turns <b style="color:#f59e0b">amber + soft double-beep</b> as you near the cap, then <b style="color:#ef4444">red + alarm</b> if you go over — ease off when you hear it.</li>
         <li>No Bluefy? Cues, timers, adjustments and logging still work in Safari — just type your Avg/Max HR from Polar Beat at the end.</li>
+        <li><b>Music:</b> add your Suno MP3s in the Music section (Home) — stored on your device, never uploaded. They play during runs and <b>duck automatically</b> when the over-cap alarm sounds, so you always hear it.</li>
       </ul>
     </div>
     <button class="btn-ghost" onclick="show('home')">← Back</button>
   </section>
 
 </div>
+<audio id="audioEl" preload="metadata"></audio>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -355,7 +376,7 @@ const HR = { device:null, char:null, bpm:null, connected:false, zone:null, lastO
 /* ===================== INIT ===================== */
 function load(){
   try{ Object.assign(PROFILE, JSON.parse(localStorage.getItem("maf_profile")||"{}")); }catch(e){}
-  applyProfileUI(); renderWorkouts(); renderHistory(); checkEnv();
+  applyProfileUI(); renderWorkouts(); renderHistory(); checkEnv(); initMusic();
 }
 function saveProfile(){ localStorage.setItem("maf_profile", JSON.stringify(PROFILE)); }
 function applyProfileUI(){
@@ -585,11 +606,11 @@ function onHRValue(e){
     const z=hrZone(bpm);
     if(z!==HR.zone){
       if(z==="near" && HR.zone!=="over") warnBeep();                    // approaching the cap
-      else if(z==="over"){ beep(440,260); HR.lastOverBeep=Date.now(); } // over the cap
+      else if(z==="over"){ overAlarm(); HR.lastOverBeep=Date.now(); }   // over the cap
       else if(HR.zone==="over") beep(700,120);                          // dropped back under
       HR.zone=z;
     }
-    if(z==="over" && Date.now()-HR.lastOverBeep>=15000){ beep(440,260); HR.lastOverBeep=Date.now(); } // re-alarm if lingering over
+    if(z==="over" && Date.now()-HR.lastOverBeep>=15000){ overAlarm(); HR.lastOverBeep=Date.now(); } // re-alarm if lingering over
   }
   setHRUI();
 }
@@ -720,9 +741,10 @@ function copyLog(){
 }
 function exportAll(){ copy(JSON.stringify({profile:PROFILE, sessions:sessions()}, null, 2)); }
 function clearData(){
-  if(confirm("Delete ALL saved sessions and settings from this device? This can't be undone.")){
+  if(confirm("Delete ALL saved sessions, settings, and music from this device? This can't be undone.")){
     localStorage.removeItem("maf_sessions"); localStorage.removeItem("maf_profile");
-    renderHistory(); toast("All data cleared");
+    if(mdb){ try{ mtx("readwrite").clear(); }catch(e){} }
+    stopMusic(); playlist=[]; renderMusic(); renderHistory(); toast("All data cleared");
   }
 }
 function copy(txt){
@@ -736,6 +758,109 @@ function fallbackCopy(txt){
 }
 let toastT=null;
 function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),1600); }
+
+/* ===================== MUSIC (your Suno MP3s, stored on-device in IndexedDB) ===================== */
+let mdb=null, playlist=[], curTrack=-1, curUrl=null, musicPlaying=false, duckT=null;
+function openDB(){
+  return new Promise(function(res,rej){
+    try{
+      var r=indexedDB.open("mafMusic",1);
+      r.onupgradeneeded=function(e){ e.target.result.createObjectStore("tracks",{keyPath:"id"}); };
+      r.onsuccess=function(e){ mdb=e.target.result; res(mdb); };
+      r.onerror=function(){ rej(r.error); };
+    }catch(e){ rej(e); }
+  });
+}
+function mtx(mode){ return mdb.transaction("tracks",mode).objectStore("tracks"); }
+function loadPlaylist(){
+  return new Promise(function(res){
+    if(!mdb){ playlist=[]; res([]); return; }
+    var out=[], req=mtx("readonly").openCursor();
+    req.onsuccess=function(e){ var c=e.target.result; if(c){ out.push({id:c.value.id,name:c.value.name}); c.continue(); } else { playlist=out; res(out); } };
+    req.onerror=function(){ playlist=[]; res([]); };
+  });
+}
+function idbPut(rec){ return new Promise(function(res,rej){ var r=mtx("readwrite").put(rec); r.onsuccess=function(){res();}; r.onerror=function(){rej(r.error);}; }); }
+async function addTracks(files){
+  if(!mdb){ try{ await openDB(); }catch(e){ toast("Storage unavailable"); return; } }
+  var n=0;
+  for(var i=0;i<files.length;i++){ var f=files[i];
+    try{ var buf=await f.arrayBuffer(); await idbPut({ id:f.name+"::"+f.size, name:f.name.replace(/\.[^.]+$/,""), type:f.type||"audio/mpeg", buf:buf }); n++; }catch(e){}
+  }
+  await loadPlaylist(); renderMusic(); toast(n+" track"+(n===1?"":"s")+" added");
+}
+function getBlob(id){
+  return new Promise(function(res){ var r=mtx("readonly").get(id); r.onsuccess=function(e){ var v=e.target.result; res(v? new Blob([v.buf],{type:v.type||"audio/mpeg"}):null); }; r.onerror=function(){res(null);}; });
+}
+async function removeTrack(id){
+  if(playlist[curTrack] && playlist[curTrack].id===id) stopMusic();
+  try{ await new Promise(function(res,rej){ var r=mtx("readwrite").delete(id); r.onsuccess=res; r.onerror=rej; }); }catch(e){}
+  await loadPlaylist(); renderMusic(); toast("Removed");
+}
+async function clearMusic(){
+  if(!confirm("Remove all music from this device?")) return;
+  try{ await new Promise(function(res,rej){ var r=mtx("readwrite").clear(); r.onsuccess=res; r.onerror=rej; }); }catch(e){}
+  stopMusic(); await loadPlaylist(); renderMusic(); toast("Music cleared");
+}
+async function playTrack(i){
+  if(!playlist.length) return;
+  curTrack=(i+playlist.length)%playlist.length;
+  var blob=await getBlob(playlist[curTrack].id);
+  if(!blob){ toast("Track missing"); return; }
+  if(curUrl) URL.revokeObjectURL(curUrl);
+  curUrl=URL.createObjectURL(blob);
+  var a=$("audioEl"); a.src=curUrl; a.volume=1;
+  a.play().catch(function(){ toast("Tap ▶ to start music"); });
+  setMediaSession(); updateMusicUI(); renderMusic();
+}
+function toggleMusic(){
+  if(!playlist.length){ toast("Add MP3s first"); return; }
+  var a=$("audioEl");
+  if(a.paused){ if(curTrack<0) playTrack(0); else a.play().catch(function(){}); }
+  else a.pause();
+}
+function nextTrack(){ if(playlist.length) playTrack(curTrack+1); }
+function prevTrack(){ if(playlist.length) playTrack(curTrack-1); }
+function stopMusic(){ var a=$("audioEl"); try{a.pause();}catch(e){} a.removeAttribute("src"); if(curUrl){URL.revokeObjectURL(curUrl); curUrl=null;} curTrack=-1; musicPlaying=false; updateMusicUI(); }
+function duck(){ var a=$("audioEl"); if(!a||a.paused) return; a.volume=0.2; clearTimeout(duckT); duckT=setTimeout(function(){ try{a.volume=1;}catch(e){} },800); }
+function overAlarm(){ beep(440,260); duck(); }
+function setMediaSession(){
+  if(!("mediaSession" in navigator)) return;
+  try{
+    navigator.mediaSession.metadata=new MediaMetadata({ title:(playlist[curTrack]||{}).name||"MAF Pacer", artist:"Suno", album:"MAF Pacer" });
+    navigator.mediaSession.setActionHandler("nexttrack", nextTrack);
+    navigator.mediaSession.setActionHandler("previoustrack", prevTrack);
+    navigator.mediaSession.setActionHandler("play", function(){ $("audioEl").play(); });
+    navigator.mediaSession.setActionHandler("pause", function(){ $("audioEl").pause(); });
+  }catch(e){}
+}
+function updateMusicUI(){
+  var nm=(curTrack>=0&&playlist[curTrack])?playlist[curTrack].name:(playlist.length?(playlist.length+" track"+(playlist.length===1?"":"s")+" ready"):"No music loaded");
+  if($("trackNow")) $("trackNow").textContent=nm;
+  if($("trackNowPl")) $("trackNowPl").textContent=(curTrack>=0&&playlist[curTrack])?("♪ "+playlist[curTrack].name):"♪";
+  if($("playBtn")) $("playBtn").textContent=musicPlaying?"⏸ Pause":"▶ Play";
+  if($("playBtnPl")) $("playBtnPl").textContent=musicPlaying?"⏸":"▶";
+  if($("musicBar")) $("musicBar").style.display=playlist.length?"flex":"none";
+}
+function renderMusic(){
+  var list=$("trackList"); if(!list) return; list.innerHTML="";
+  if(!playlist.length){ list.innerHTML='<div class="empty">No tracks yet. Add your Suno MP3s — they stay on this device.</div>'; updateMusicUI(); return; }
+  playlist.forEach(function(t,i){
+    var row=document.createElement("div"); row.className="histitem";
+    var nm=document.createElement("div"); nm.style.cssText="flex:1;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"; nm.textContent=(i===curTrack?"▶ ":"")+t.name; nm.onclick=function(){ playTrack(i); };
+    var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.onclick=function(){ removeTrack(t.id); };
+    row.appendChild(nm); row.appendChild(del); list.appendChild(row);
+  });
+  var c=document.createElement("button"); c.className="btn-ghost"; c.style.cssText="width:100%;margin-top:8px;font-size:13px;"; c.textContent="Clear all music"; c.onclick=clearMusic; list.appendChild(c);
+  updateMusicUI();
+}
+function initMusic(){
+  var a=$("audioEl"); if(!a) return;
+  a.addEventListener("ended", nextTrack);
+  a.addEventListener("play", function(){ musicPlaying=true; updateMusicUI(); renderMusic(); });
+  a.addEventListener("pause", function(){ musicPlaying=false; updateMusicUI(); });
+  openDB().then(loadPlaylist).then(function(){ renderMusic(); }).catch(function(){ renderMusic(); });
+}
 
 load();
 </script>
