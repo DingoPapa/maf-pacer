@@ -132,7 +132,10 @@
       <button class="btn-good" id="homeConnect" style="width:100%; margin-top:10px;" onclick="connectHR()">Connect Polar H10</button>
     </div>
 
-    <h2>Today's workouts</h2>
+    <h2>Today's workout</h2>
+    <div id="todayWorkout"></div>
+
+    <h2>More workouts</h2>
     <div id="workoutList"></div>
 
     <div class="navbtns">
@@ -145,9 +148,10 @@
   <section id="player" class="screen">
     <div class="pl-top">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div class="stepbadge" id="plTitle">Workout</div>
+        <button class="btn-ghost" id="btnExit" onclick="exitWorkout()" style="flex:0; padding:6px 12px; font-size:14px;">← Home</button>
         <div class="stepbadge" id="plStep">Stage 1 / 1</div>
       </div>
+      <div class="stepbadge" id="plTitle" style="margin-top:6px;">Workout</div>
       <div class="progwrap"><div class="progbar" id="progbar"></div></div>
     </div>
 
@@ -339,6 +343,9 @@ const WORKOUTS = [
   }
 ];
 
+/* Which workout is featured under "Today's workout" (Claude sets this each cycle). */
+const TODAY_ID = "steady40";
+
 /* ===================== STATE ===================== */
 const $ = id => document.getElementById(id);
 let cur=null, idx=0, endAt=0, remain=0, running=false, tick=null, audio=null, wakeLock=null;
@@ -377,6 +384,7 @@ function checkEnv(){
 function show(s){
   document.querySelectorAll(".screen").forEach(e=>e.classList.remove("active"));
   $(s).classList.add("active"); window.scrollTo(0,0);
+  if(s==="home") cur=null;
   if(s==="history") renderHistory();
 }
 
@@ -391,15 +399,19 @@ function avgOf(a){ return a.reduce((x,y)=>x+y,0)/a.length; }
 
 /* ===================== WORKOUT LIST ===================== */
 function renderWorkouts(){
-  const wrap=$("workoutList"); wrap.innerHTML="";
-  WORKOUTS.forEach(w=>{
-    const total=w.stages.reduce((a,s)=>a+s.sec,0);
-    const b=document.createElement("button");
-    b.className="card"; b.style.width="100%"; b.style.padding="14px 16px"; b.style.marginBottom="10px";
-    b.innerHTML=`<div class="wk"><div><div style="font-size:16px;font-weight:800;">${w.title}</div><small>${w.tag}</small></div><div class="pill">${Math.round(total/60)} min</div></div>`;
-    b.onclick=()=>startWorkout(w);
-    wrap.appendChild(b);
-  });
+  const today = WORKOUTS.find(w=>w.id===TODAY_ID) || WORKOUTS[0];
+  $("todayWorkout").innerHTML=""; renderCard(today, $("todayWorkout"), true);
+  const others=$("workoutList"); others.innerHTML="";
+  WORKOUTS.forEach(w=>{ if(w!==today) renderCard(w, others, false); });
+}
+function renderCard(w, wrap, featured){
+  const total=w.stages.reduce((a,s)=>a+s.sec,0);
+  const b=document.createElement("button");
+  b.className="card"; b.style.width="100%"; b.style.padding="14px 16px"; b.style.marginBottom="10px";
+  if(featured){ b.style.borderColor="var(--accent)"; b.style.background="#16203c"; }
+  b.innerHTML=`<div class="wk"><div><div style="font-size:16px;font-weight:800;">${w.title}</div><small>${w.tag}</small></div><div class="pill">${Math.round(total/60)} min</div></div>`;
+  b.onclick=()=>startWorkout(w);
+  wrap.appendChild(b);
 }
 
 /* ===================== SESSION OBJECT ===================== */
@@ -541,6 +553,12 @@ function endWorkout(manual){
   }
   if(suggest!=null) $("inMaf").value=suggest;
   show("summary");
+}
+function exitWorkout(){
+  const inProgress = SESS && (running || (SESS.hr && SESS.hr.length>0) || elapsedSec()>3);
+  if(inProgress && !confirm("Leave this workout and go Home? Progress won't be saved.")) return;
+  running=false; clearInterval(tick); releaseWake(); $("btnPlay").textContent="Start";
+  show("home");
 }
 
 /* ===================== LIVE HR (Web Bluetooth) ===================== */
