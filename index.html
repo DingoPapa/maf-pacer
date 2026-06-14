@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="MAF Pacer" />
+<meta name="theme-color" content="#0b1020" />
+<title>MAF Pacer</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#141a2e; --panel2:#1b2440; --ink:#eaf0ff; --muted:#8d97b8;
+    --walk:#2f6df6; --jog:#22c55e; --hold:#f59e0b; --over:#ef4444; --line:#27304f;
+    --accent:#5b8cff; --good:#22c55e;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    -webkit-user-select:none; user-select:none;
+  }
+  .app{max-width:560px; margin:0 auto; min-height:100dvh; display:flex; flex-direction:column;}
+  .screen{display:none; flex:1; flex-direction:column; padding:16px;}
+  .screen.active{display:flex;}
+  h1{font-size:22px; margin:4px 0 2px;}
+  h2{font-size:16px; color:var(--muted); font-weight:600; margin:18px 0 8px; letter-spacing:.02em; text-transform:uppercase;}
+  .sub{color:var(--muted); font-size:13px;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:12px;}
+  .row{display:flex; gap:10px;}
+  .row>*{flex:1;}
+  .pill{display:inline-block; background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:6px 12px; font-size:13px; color:var(--ink);}
+  button{
+    font-family:inherit; font-size:16px; font-weight:700; color:var(--ink);
+    background:var(--panel2); border:1px solid var(--line); border-radius:14px;
+    padding:14px 16px; cursor:pointer; transition:transform .05s ease, filter .15s ease;
+  }
+  button:active{transform:scale(.98);}
+  .btn-primary{background:linear-gradient(180deg,#5b8cff,#3b6cf0); border-color:#3b6cf0;}
+  .btn-ghost{background:transparent;}
+  .btn-good{background:linear-gradient(180deg,#22c55e,#16a34a); border-color:#16a34a;}
+  .btn-danger{background:#3a1620; border-color:#5b2330; color:#ffd7dd;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .wk{display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; text-align:left;}
+  .wk small{color:var(--muted); font-weight:600;}
+  .muted{color:var(--muted);}
+  label{font-size:13px; color:var(--muted); display:block; margin-bottom:6px;}
+  input[type=number],input[type=text]{
+    width:100%; font-size:18px; padding:12px; border-radius:12px; background:var(--panel2);
+    color:var(--ink); border:1px solid var(--line); font-family:inherit;
+  }
+  textarea{width:100%; min-height:80px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:12px; padding:12px; font-family:inherit; font-size:14px;}
+  .toggle{display:flex; gap:8px;}
+  .toggle button{flex:1; padding:10px;}
+  .toggle button.sel{background:var(--accent); border-color:var(--accent);}
+  .banner{background:#2a1d05; border:1px solid #5a4112; color:#ffe9bd; border-radius:12px; padding:10px 12px; font-size:13px; margin-bottom:12px; line-height:1.45;}
+  .banner b{color:#ffd479;}
+
+  /* HR chip */
+  .hrchip{display:flex; align-items:center; gap:10px; background:var(--panel2); border:1px solid var(--line); border-radius:14px; padding:10px 14px;}
+  .hrchip .dot{width:10px; height:10px; border-radius:50%; background:#555;}
+  .hrchip.live .dot{background:var(--good); box-shadow:0 0 8px var(--good); animation:pulse 1s infinite;}
+  .hrchip .bpm{font-size:26px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .hrchip .bpm.over{color:var(--over);}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+  /* Player */
+  #player{padding:0;}
+  .pl-top{padding:12px 14px 4px; position:relative;}
+  .progwrap{height:8px; background:var(--panel2); border-radius:999px; overflow:hidden; margin-top:8px;}
+  .progbar{height:100%; width:0%; background:var(--accent); transition:width .3s linear;}
+  .videowrap{margin:0 14px 8px; border-radius:14px; overflow:hidden; background:#000; display:none;}
+  .videowrap.show{display:block;}
+  .videowrap iframe{width:100%; aspect-ratio:16/9; display:block; border:0;}
+  .vidbar{display:flex; gap:8px; margin:0 14px 6px;}
+  .vidbar button{padding:8px 10px; font-size:13px; flex:0;}
+  .stagecard{flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; margin:6px 14px; border-radius:24px; transition:background .25s ease; padding:10px 6px;}
+  .stagecard.walk{background:radial-gradient(120% 120% at 50% 0%, #1c356e 0%, #0e1830 70%);}
+  .stagecard.jog{background:radial-gradient(120% 120% at 50% 0%, #14502c 0%, #0c1a14 70%);}
+  .stagecard.hold{background:radial-gradient(120% 120% at 50% 0%, #5a4112 0%, #1a1407 70%);}
+  .stagecard.flash{animation:flash .6s ease;}
+  @keyframes flash{0%{filter:brightness(2.4);}100%{filter:brightness(1);}}
+  .stagename{font-size:18px; font-weight:800;}
+  .timer{font-size:60px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; margin:4px 0;}
+  .cue{color:#dfe6ff; font-size:14px; max-width:320px; min-height:34px;}
+  .metrics{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; width:100%; padding:0 4px; margin-top:10px;}
+  .metric{background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:8px 4px;}
+  .metric .v{font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.1;}
+  .metric .v.bpm{color:#9fb4ff;}
+  .metric .v.bpm.over{color:var(--over);}
+  .metric .v.bpm.under{color:var(--good);}
+  .metric .k{font-size:10px; color:#c7d0f0; text-transform:uppercase; letter-spacing:.05em; margin-top:2px;}
+  .next{color:#c7d0f0; font-size:12px; margin-top:8px; opacity:.9;}
+  .controls{display:grid; grid-template-columns:1fr 2fr 1fr; gap:10px; padding:10px 14px 4px;}
+  .controls button{padding:16px 10px;}
+  .stepbadge{font-size:12px; color:var(--muted);}
+  svg{width:100%; height:160px; display:block;}
+  .empty{color:var(--muted); font-size:14px; padding:8px 0;}
+  .navbtns{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:auto; padding-top:10px;}
+  .toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#0f1730; border:1px solid var(--line); color:var(--ink); padding:10px 16px; border-radius:12px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:50;}
+  .toast.show{opacity:1;}
+  .histitem{display:flex; justify-content:space-between; gap:8px; padding:10px 0; border-bottom:1px solid var(--line); font-size:14px;}
+  .histitem small{color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ HOME ============ -->
+  <section id="home" class="screen active">
+    <h1>MAF&nbsp;Pacer</h1>
+    <div class="sub">Aerobic base & fat-burning — treadmill</div>
+
+    <div id="envBanner" class="banner" style="display:none;"></div>
+
+    <div class="card" style="margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div class="sub">Your MAF ceiling</div>
+        <div style="font-size:40px; font-weight:800; line-height:1;"><span id="ceilBig">140</span> <span style="font-size:18px; color:var(--muted);">bpm</span></div>
+        <div class="sub" style="margin-top:4px;">Train <b id="zoneTxt">130–140</b> · sweet spot <b id="sweetTxt">135–140</b></div>
+      </div>
+      <button class="btn-ghost" onclick="show('settings')" style="flex:0; padding:10px 14px;">⚙︎</button>
+    </div>
+
+    <h2>Live heart rate <span class="sub" style="text-transform:none;">(needs Bluefy)</span></h2>
+    <div class="card">
+      <div class="hrchip" id="homeHrChip"><span class="dot"></span><span class="bpm" id="homeBpm">––</span><span class="sub" id="homeHrLabel">Not connected</span></div>
+      <button class="btn-good" id="homeConnect" style="width:100%; margin-top:10px;" onclick="connectHR()">Connect Polar H10</button>
+    </div>
+
+    <h2>Watch while you run</h2>
+    <div class="card">
+      <label>YouTube link (paste any video URL)</label>
+      <input type="text" id="ytInput" placeholder="https://youtu.be/…  (pick a non-music, embeddable video)" />
+      <button style="width:100%; margin-top:10px;" onclick="saveVideo()">Set video</button>
+      <div class="sub" id="ytStatus" style="margin-top:8px;">No video set — the player works without one too.</div>
+    </div>
+
+    <h2>Today's workouts</h2>
+    <div id="workoutList"></div>
+
+    <div class="navbtns">
+      <button class="btn-ghost" onclick="show('history')">📈 Progress & log</button>
+      <button class="btn-ghost" onclick="show('about')">ℹ︎ How to use</button>
+    </div>
+  </section>
+
+  <!-- ============ PLAYER ============ -->
+  <section id="player" class="screen">
+    <div class="pl-top">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="stepbadge" id="plTitle">Workout</div>
+        <div class="stepbadge" id="plStep">Stage 1 / 1</div>
+      </div>
+      <div class="progwrap"><div class="progbar" id="progbar"></div></div>
+    </div>
+
+    <div class="vidbar" id="vidbar" style="display:none;">
+      <button class="btn-ghost" id="vidToggle" onclick="toggleVideo()">▾ Hide video</button>
+    </div>
+    <div class="videowrap" id="videowrap"></div>
+
+    <div class="stagecard walk" id="stageCard">
+      <div class="stagename" id="stageName">—</div>
+      <div class="timer" id="timer">00:00</div>
+      <div class="cue" id="cue">—</div>
+      <div class="metrics">
+        <div class="metric"><div class="v" id="mSpeed">3.0</div><div class="k">Speed <span class="uLbl">mph</span></div></div>
+        <div class="metric"><div class="v" id="mIncline">1%</div><div class="k">Incline</div></div>
+        <div class="metric"><div class="v bpm" id="mBpm">––</div><div class="k">HR · keep ≤<span id="mCeil">140</span></div></div>
+      </div>
+      <div class="next" id="nextLine">Up next: —</div>
+    </div>
+
+    <div class="controls">
+      <button class="btn-ghost" id="btnPrev" onclick="prevStage()">◂</button>
+      <button class="btn-primary" id="btnPlay" onclick="togglePlay()">Start</button>
+      <button class="btn-ghost" id="btnNext" onclick="skipStage()">▸</button>
+    </div>
+    <div style="padding:6px 14px calc(12px + env(safe-area-inset-bottom));"><button class="btn-danger" style="width:100%;" onclick="endWorkout(true)">Finish & log</button></div>
+  </section>
+
+  <!-- ============ SUMMARY ============ -->
+  <section id="summary" class="screen">
+    <h1>Nice work 💪</h1>
+    <div class="sub" id="sumLine">—</div>
+    <div class="card" style="margin-top:14px;">
+      <h2 style="margin-top:0;">Log it</h2>
+      <div class="sub" id="autoNote" style="margin:-4px 0 10px; display:none;"></div>
+      <div class="grid2">
+        <div><label>Avg HR</label><input type="number" id="inAvg" inputmode="numeric" placeholder="e.g. 132"></div>
+        <div><label>Max HR</label><input type="number" id="inMax" inputmode="numeric" placeholder="e.g. 140"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px;">
+        <div><label>MAF speed found (<span class="uLbl">mph</span>)</label><input type="number" id="inMaf" inputmode="decimal" step="0.1" placeholder="e.g. 4.7"></div>
+        <div><label>Effort (RPE 1–10)</label><input type="number" id="inRpe" inputmode="numeric" min="1" max="10" placeholder="e.g. 4"></div>
+      </div>
+      <div style="margin-top:10px;"><label>Notes</label><textarea id="inNotes" placeholder="Felt easy. HR drifted to 142 on the last hold — dropped speed 0.2."></textarea></div>
+      <button class="btn-primary" style="width:100%; margin-top:12px;" onclick="saveSession()">Save session</button>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0;">Send to Claude</h2>
+      <div class="sub" style="margin-bottom:10px;">Copy a summary, paste into chat (with Polar Beat screenshots) and I'll re-program your next workout.</div>
+      <button style="width:100%;" onclick="copyLog()">📋 Copy session log</button>
+    </div>
+    <div class="navbtns"><button class="btn-ghost" onclick="show('home')">Home</button><button class="btn-ghost" onclick="show('history')">Progress</button></div>
+  </section>
+
+  <!-- ============ HISTORY ============ -->
+  <section id="history" class="screen">
+    <h1>Progress & log</h1>
+    <h2>MAF test — speed at HR ceiling (higher = fitter)</h2>
+    <div class="card"><div id="chart"></div></div>
+    <h2>Session history</h2>
+    <div id="histList"></div>
+    <div class="navbtns">
+      <button class="btn-ghost" onclick="exportAll()">⤓ Export all data</button>
+      <button class="btn-ghost" onclick="show('home')">Home</button>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section id="settings" class="screen">
+    <h1>Settings</h1>
+    <div class="card">
+      <label>MAF heart-rate ceiling (bpm)</label>
+      <input type="number" id="setCeil" inputmode="numeric">
+      <div class="sub" style="margin-top:6px;">180 − age − adjustment. You: 180 − 35 − 5 = 140. Becomes 139 when you turn 36 (Sept 2026).</div>
+    </div>
+    <div class="card">
+      <label>Treadmill speed units</label>
+      <div class="toggle"><button id="unitMph" onclick="setUnits('mph')">mph</button><button id="unitKmh" onclick="setUnits('kmh')">km/h</button></div>
+    </div>
+    <div class="card">
+      <label>Audio cues</label>
+      <div class="toggle"><button id="sndOn" onclick="setSound(true)">On</button><button id="sndOff" onclick="setSound(false)">Off</button></div>
+      <div class="sub" style="margin-top:6px;">Beeps count down the last 3 sec of each stage, chime on every change, and alert when HR goes over the ceiling.</div>
+    </div>
+    <div class="navbtns"><button class="btn-ghost" onclick="show('about')">How to use</button><button class="btn-primary" onclick="applySettings(); show('home');">Save</button></div>
+  </section>
+
+  <!-- ============ ABOUT ============ -->
+  <section id="about" class="screen">
+    <h1>How to use</h1>
+    <div class="card">
+      <h2 style="margin-top:0;">All three on one screen</h2>
+      <ol style="padding-left:18px; line-height:1.6; font-size:14.5px;">
+        <li>Open this page in the <b>Bluefy browser</b> (free on the App Store) from its <b>https link</b> — not Safari, and not a downloaded file. That's what lets it read your strap and play video.</li>
+        <li>Wear the Polar H10. On Home, tap <b>Connect Polar H10</b> and pick it. (Don't run Polar Beat at the same time — let one app own the strap.)</li>
+        <li>Paste a <b>YouTube link</b> (non-music, embeddable) and tap Set video.</li>
+        <li>Pick a workout → <b>Start</b>. You'll see the video, your live BPM, and the speed/incline/timer cues together. Tap the video once to start its sound.</li>
+        <li>Keep HR <b>under the ceiling</b>; if it goes over, the number turns red + beeps — drop the treadmill speed.</li>
+        <li>At the end, your Avg/Max HR are <b>filled in automatically</b>. Tap <b>Copy session log</b> and paste it to me with your Polar Beat screenshots.</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0;">Important</h2>
+      <ul style="padding-left:18px; line-height:1.6; font-size:14px;">
+        <li><b>Set Auto-Lock to Never</b> (Settings → Display) and keep this page in front the whole run — backgrounding it stops the timers and can drop the HR stream.</li>
+        <li>Keep the video <b>inline</b> (don't tap fullscreen) so the cues stay visible.</li>
+        <li>Ads play on monetized videos; the cues keep running through them.</li>
+        <li><b>Smoke-test a new video for ~5 min</b> in Bluefy before trusting it on a long run.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0;">No Bluefy? Still works.</h2>
+      <div class="sub" style="line-height:1.6;">In plain Safari the workout cues, timers and logging all work — you just won't get live HR or the embedded video. Glance at Polar Beat for HR and type your Avg/Max at the end.</div>
+    </div>
+    <button class="btn-ghost" onclick="show('home')">← Back</button>
+  </section>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   MAF PACER — guided treadmill player + live HR + inline video
+   Claude edits the WORKOUTS below each cycle from your Polar data.
+   Live HR & video require the Bluefy browser served over https.
+   ============================================================ */
+
+const PROFILE = { ceiling: 140, units: "mph", sound: true, videoId: "" };
+
+/* ---- WORKOUTS (Claude updates this list) ----
+   stage = { name, type:'walk'|'jog'|'hold', speed:Number|null, incline:Number, sec:Number, cue:String }
+   speed:null => "hold the speed where your HR sits 135–140" */
+const WORKOUTS = [
+  {
+    id:"discovery", title:"1 · MAF Pace Discovery", tag:"Do this first — finds your MAF speed", isTest:false,
+    stages:[
+      {name:"Warm-up walk",  type:"walk", speed:3.0, incline:1, sec:300, cue:"Easy walk. Let your heart rate settle."},
+      {name:"Brisk walk",    type:"walk", speed:3.5, incline:1, sec:180, cue:"Pick it up to a brisk walk."},
+      {name:"Easy jog 1",    type:"jog",  speed:4.0, incline:1, sec:180, cue:"Easy jog. Note your HR."},
+      {name:"Easy jog 2",    type:"jog",  speed:4.3, incline:1, sec:180, cue:"HR lags ~1–2 min — be patient."},
+      {name:"Easy jog 3",    type:"jog",  speed:4.6, incline:1, sec:180, cue:"Note your HR."},
+      {name:"Easy jog 4",    type:"jog",  speed:4.9, incline:1, sec:180, cue:"Stop stepping up once HR hits 138–140."},
+      {name:"Easy jog 5",    type:"jog",  speed:5.2, incline:1, sec:180, cue:"Only if HR is still under 138."},
+      {name:"MAF hold",      type:"hold", speed:null, incline:1, sec:600, cue:"Hold the speed where HR sits 135–140. THIS is your MAF pace — remember it!"},
+      {name:"Cool-down walk",type:"walk", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish. Well done."}
+    ]
+  },
+  {
+    id:"steady45", title:"2 · Steady Base — 45 min", tag:"Use after discovery (speed is an estimate for now)", isTest:false,
+    stages:[
+      {name:"Warm-up walk",  type:"walk", speed:3.2, incline:1, sec:300, cue:"Easy walk."},
+      {name:"Ease in",       type:"jog",  speed:4.3, incline:1, sec:300, cue:"Settle into an easy jog."},
+      {name:"MAF steady",    type:"jog",  speed:4.6, incline:1, sec:1800, cue:"Hold MAF pace. Keep HR 130–140. Over 140 → slow down."},
+      {name:"Cool-down walk",type:"walk", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
+    ]
+  },
+  {
+    id:"maftest", title:"3 · Monthly MAF Test", tag:"Once a month — log the speed that holds HR at the ceiling", isTest:true,
+    stages:[
+      {name:"Warm-up walk",  type:"walk", speed:3.2, incline:1, sec:300, cue:"Easy walk."},
+      {name:"Build",         type:"jog",  speed:4.3, incline:1, sec:300, cue:"Ease up toward MAF."},
+      {name:"Settle at MAF", type:"hold", speed:null, incline:1, sec:300, cue:"Adjust speed so HR sits exactly at the ceiling."},
+      {name:"TEST hold",     type:"hold", speed:null, incline:1, sec:900, cue:"Hold HR at the ceiling 15 min. Note the speed — that's your score."},
+      {name:"Cool-down walk",type:"walk", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
+    ]
+  }
+];
+
+/* ===================== STATE ===================== */
+const $ = id => document.getElementById(id);
+let cur=null, idx=0, endAt=0, remain=0, running=false, tick=null, audio=null, wakeLock=null;
+let videoShown=false;
+const HR = { device:null, char:null, bpm:null, connected:false, samples:[], max:0, overSec:0, lastTs:0, wasOver:false };
+
+/* ===================== INIT ===================== */
+function load(){
+  try{ Object.assign(PROFILE, JSON.parse(localStorage.getItem("maf_profile")||"{}")); }catch(e){}
+  applyProfileUI(); renderWorkouts(); renderHistory(); checkEnv(); renderVideoStatus();
+}
+function saveProfile(){ localStorage.setItem("maf_profile", JSON.stringify(PROFILE)); }
+
+function applyProfileUI(){
+  $("ceilBig").textContent=PROFILE.ceiling;
+  $("zoneTxt").textContent=(PROFILE.ceiling-10)+"–"+PROFILE.ceiling;
+  $("sweetTxt").textContent=(PROFILE.ceiling-5)+"–"+PROFILE.ceiling;
+  $("mCeil").textContent=PROFILE.ceiling;
+  $("setCeil").value=PROFILE.ceiling;
+  document.querySelectorAll(".uLbl").forEach(e=>e.textContent=PROFILE.units);
+  $("unitMph").classList.toggle("sel",PROFILE.units==="mph");
+  $("unitKmh").classList.toggle("sel",PROFILE.units==="kmh");
+  $("sndOn").classList.toggle("sel",PROFILE.sound);
+  $("sndOff").classList.toggle("sel",!PROFILE.sound);
+  if(PROFILE.videoId) $("ytInput").value="https://youtu.be/"+PROFILE.videoId;
+}
+function setUnits(u){ PROFILE.units=u; applyProfileUI(); }
+function setSound(b){ PROFILE.sound=b; applyProfileUI(); }
+function applySettings(){ const c=parseInt($("setCeil").value,10); if(c>80&&c<210) PROFILE.ceiling=c; saveProfile(); applyProfileUI(); }
+
+function checkEnv(){
+  const b=$("envBanner"); const msgs=[];
+  const secure = location.protocol==="https:" || location.hostname==="localhost";
+  if(!("bluetooth" in navigator)) msgs.push("Live HR & video need the <b>Bluefy</b> browser — open this page in Bluefy. (Safari can't read the strap.)");
+  else if(!secure) msgs.push("Open this page from an <b>https link</b> (not a downloaded file) so HR and video work.");
+  if(msgs.length){ b.innerHTML=msgs.join("<br>"); b.style.display="block"; } else { b.style.display="none"; }
+}
+
+function show(s){
+  document.querySelectorAll(".screen").forEach(e=>e.classList.remove("active"));
+  $(s).classList.add("active"); window.scrollTo(0,0);
+  if(s==="history") renderHistory();
+}
+
+/* ===================== VIDEO ===================== */
+function ytId(s){
+  if(!s) return ""; s=s.trim();
+  const m=s.match(/(?:youtu\.be\/|[?&]v=|embed\/|shorts\/|live\/)([\w-]{11})/);
+  if(m) return m[1];
+  if(/^[\w-]{11}$/.test(s)) return s;
+  return "";
+}
+function saveVideo(){
+  const id=ytId($("ytInput").value);
+  if(!id){ toast("Couldn't read that link"); return; }
+  PROFILE.videoId=id; saveProfile(); renderVideoStatus(); toast("Video set ✓");
+}
+function renderVideoStatus(){
+  $("ytStatus").textContent = PROFILE.videoId ? ("Video ready: "+PROFILE.videoId+" — shows in the player.") : "No video set — the player works without one too.";
+}
+function mountVideo(){
+  const w=$("videowrap"), bar=$("vidbar");
+  if(PROFILE.videoId && ("bluetooth" in navigator || location.protocol==="https:")){
+    const src="https://www.youtube.com/embed/"+PROFILE.videoId+"?playsinline=1&rel=0&fs=0&modestbranding=1";
+    w.innerHTML='<iframe src="'+src+'" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen="false"></iframe>';
+    w.classList.add("show"); bar.style.display="flex"; videoShown=true; $("vidToggle").textContent="▾ Hide video";
+  } else { w.innerHTML=""; w.classList.remove("show"); bar.style.display="none"; videoShown=false; }
+}
+function toggleVideo(){
+  videoShown=!videoShown;
+  $("videowrap").classList.toggle("show",videoShown);
+  $("vidToggle").textContent=videoShown?"▾ Hide video":"▸ Show video";
+}
+
+/* ===================== WORKOUT LIST ===================== */
+function renderWorkouts(){
+  const wrap=$("workoutList"); wrap.innerHTML="";
+  WORKOUTS.forEach(w=>{
+    const total=w.stages.reduce((a,s)=>a+s.sec,0);
+    const b=document.createElement("button");
+    b.className="card"; b.style.width="100%"; b.style.padding="14px 16px"; b.style.marginBottom="10px";
+    b.innerHTML=`<div class="wk"><div><div style="font-size:16px;font-weight:800;">${w.title}</div><small>${w.tag}</small></div><div class="pill">${Math.round(total/60)} min</div></div>`;
+    b.onclick=()=>startWorkout(w);
+    wrap.appendChild(b);
+  });
+}
+
+/* ===================== PLAYER ===================== */
+function startWorkout(w){
+  cur=w; idx=0; running=false;
+  HR.samples=[]; HR.max=0; HR.overSec=0; HR.lastTs=0; HR.wasOver=false;
+  $("plTitle").textContent=w.title;
+  mountVideo();
+  show("player"); loadStage(); $("btnPlay").textContent="Start";
+}
+function loadStage(){
+  const s=cur.stages[idx];
+  $("plStep").textContent=`Stage ${idx+1} / ${cur.stages.length}`;
+  $("stageName").textContent=s.name;
+  $("cue").textContent=s.cue;
+  $("mSpeed").textContent = s.speed===null ? "HOLD" : s.speed.toFixed(1);
+  $("mIncline").textContent = s.incline+"%";
+  $("stageCard").className="stagecard "+s.type;
+  remain=s.sec; renderTimer();
+  const n=cur.stages[idx+1];
+  $("nextLine").textContent = n ? `Up next: ${n.name} · ${n.speed===null?"hold":n.speed.toFixed(1)+" "+PROFILE.units} · ${n.incline}%` : "Up next: finish 🏁";
+  updateProgress();
+}
+function renderTimer(){
+  const m=Math.floor(remain/60), s=remain%60;
+  $("timer").textContent=String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+}
+function updateProgress(){
+  const done=cur.stages.slice(0,idx).reduce((a,s)=>a+s.sec,0)+(cur.stages[idx].sec-remain);
+  const total=cur.stages.reduce((a,s)=>a+s.sec,0);
+  $("progbar").style.width=(100*done/total)+"%";
+}
+function togglePlay(){ running?pause():play(); }
+function startTick(){
+  clearInterval(tick); endAt=Date.now()+remain*1000;
+  tick=setInterval(()=>{
+    remain=Math.max(0,Math.round((endAt-Date.now())/1000));
+    renderTimer(); updateProgress();
+    if(remain<=3&&remain>0) beep(880,90);
+    if(remain<=0) nextStageAuto();
+  },200);
+}
+function play(){ running=true; $("btnPlay").textContent="Pause"; unlockAudio(); requestWake(); startTick(); }
+function pause(){ running=false; $("btnPlay").textContent="Resume"; clearInterval(tick); releaseWake(); }
+function nextStageAuto(){
+  clearInterval(tick); chime(); flash();
+  if(idx<cur.stages.length-1){ idx++; loadStage(); startTick(); }
+  else endWorkout(false);
+}
+function skipStage(){ if(idx<cur.stages.length-1){ idx++; loadStage(); if(running) startTick(); } else endWorkout(true); }
+function prevStage(){ if(idx>0){ idx--; loadStage(); if(running) startTick(); } }
+function flash(){ const c=$("stageCard"); c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash"); }
+
+function endWorkout(manual){
+  running=false; clearInterval(tick); releaseWake();
+  $("btnPlay").textContent="Start";
+  pendingTitle=cur?cur.title:"Workout"; pendingIsTest=cur?!!cur.isTest:false;
+  const total=cur.stages.reduce((a,s)=>a+s.sec,0);
+  $("sumLine").textContent=`${pendingTitle} · ${Math.round(total/60)} min planned`;
+  // auto-fill from live HR
+  ["inAvg","inMax","inMaf","inRpe","inNotes"].forEach(i=>$(i).value="");
+  $("autoNote").style.display="none";
+  if(HR.samples.length){
+    const avg=Math.round(HR.samples.reduce((a,b)=>a+b,0)/HR.samples.length);
+    $("inAvg").value=avg; $("inMax").value=HR.max;
+    const overMin=(HR.overSec/60).toFixed(1);
+    $("autoNote").textContent=`Auto-logged from your strap · avg ${avg}, max ${HR.max}, ${overMin} min over ${PROFILE.ceiling}.`;
+    $("autoNote").style.display="block";
+    if(parseFloat(overMin)>2) $("inNotes").value=`${overMin} min spent over the ${PROFILE.ceiling} ceiling — consider easing the pace.`;
+  }
+  show("summary");
+}
+
+/* ===================== LIVE HR (Web Bluetooth) ===================== */
+async function connectHR(){
+  if(!("bluetooth" in navigator)){ toast("Open in Bluefy for live HR"); checkEnv(); return; }
+  try{
+    const device=await navigator.bluetooth.requestDevice({ filters:[{services:["heart_rate"]}] });
+    HR.device=device;
+    device.addEventListener("gattserverdisconnected", onHRDisconnect);
+    const server=await device.gatt.connect();
+    const service=await server.getPrimaryService("heart_rate");          // 0x180D
+    const char=await service.getCharacteristic("heart_rate_measurement"); // 0x2A37
+    HR.char=char;
+    char.addEventListener("characteristicvaluechanged", onHRValue);
+    await char.startNotifications();
+    HR.connected=true; setHRUI();
+    toast("HR connected ✓");
+  }catch(e){ toast("HR connect failed — try again"); }
+}
+function onHRValue(e){
+  const v=e.target.value, flags=v.getUint8(0);
+  let i=1, bpm;
+  if(flags&0x01){ bpm=v.getUint16(i,true); i+=2; } else { bpm=v.getUint8(i); i+=1; }  // bit0: HR format
+  HR.bpm=bpm;
+  // accumulate only while a workout is actively running
+  if(running){
+    const now=Date.now();
+    if(HR.lastTs){ const dt=Math.min(5,(now-HR.lastTs)/1000); if(bpm>PROFILE.ceiling) HR.overSec+=dt; }
+    HR.lastTs=now;
+    HR.samples.push(bpm); if(bpm>HR.max) HR.max=bpm;
+    const over=bpm>PROFILE.ceiling;
+    if(over && !HR.wasOver){ beep(440,250); }   // single alert on crossing over
+    HR.wasOver=over;
+  }
+  setHRUI();
+}
+function setHRUI(){
+  const chip=$("homeHrChip"), val=HR.bpm==null?"––":HR.bpm;
+  $("homeBpm").textContent=val;
+  $("homeHrChip").classList.toggle("live",HR.connected);
+  $("homeHrLabel").textContent=HR.connected?(HR.bpm!=null?"Live":"Connected"):"Not connected";
+  $("homeBpm").classList.toggle("over",HR.bpm!=null&&HR.bpm>PROFILE.ceiling);
+  $("homeConnect").textContent=HR.connected?"Reconnect strap":"Connect Polar H10";
+  // player metric
+  const m=$("mBpm");
+  m.textContent=val; m.classList.remove("over","under");
+  if(HR.bpm!=null) m.classList.add(HR.bpm>PROFILE.ceiling?"over":"under");
+}
+function onHRDisconnect(){ HR.connected=false; setHRUI(); toast("Strap disconnected — tap Reconnect"); }
+
+/* ===================== AUDIO / WAKE ===================== */
+function unlockAudio(){
+  if(!PROFILE.sound) return;
+  if(!audio){ try{ audio=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(audio&&audio.state==="suspended") audio.resume();
+}
+function beep(freq,ms){
+  if(!PROFILE.sound||!audio) return;
+  try{
+    const o=audio.createOscillator(), g=audio.createGain();
+    o.frequency.value=freq; o.type="sine"; o.connect(g); g.connect(audio.destination);
+    g.gain.setValueAtTime(0.001,audio.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.4,audio.currentTime+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001,audio.currentTime+ms/1000);
+    o.start(); o.stop(audio.currentTime+ms/1000+0.02);
+  }catch(e){}
+}
+function chime(){ beep(660,140); setTimeout(()=>beep(990,220),160); }
+async function requestWake(){ try{ if("wakeLock" in navigator) wakeLock=await navigator.wakeLock.request("screen"); }catch(e){} }
+function releaseWake(){ try{ if(wakeLock){ wakeLock.release(); wakeLock=null; } }catch(e){} }
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&running) requestWake(); });
+
+/* ===================== SESSIONS / HISTORY ===================== */
+let pendingTitle="Workout", pendingIsTest=false;
+function sessions(){ try{ return JSON.parse(localStorage.getItem("maf_sessions")||"[]"); }catch(e){ return []; } }
+function numOrNull(v){ const n=parseFloat(v); return isNaN(n)?null:n; }
+function saveSession(){
+  const arr=sessions();
+  arr.unshift({
+    date:new Date().toISOString(), title:pendingTitle, isTest:pendingIsTest,
+    avg:numOrNull($("inAvg").value), max:numOrNull($("inMax").value),
+    mafSpeed:numOrNull($("inMaf").value), rpe:numOrNull($("inRpe").value),
+    overSec:Math.round(HR.overSec)||null, units:PROFILE.units, ceiling:PROFILE.ceiling,
+    notes:$("inNotes").value.trim()
+  });
+  localStorage.setItem("maf_sessions",JSON.stringify(arr));
+  ["inAvg","inMax","inMaf","inRpe","inNotes"].forEach(i=>$(i).value="");
+  toast("Saved ✓"); renderHistory();
+}
+function renderHistory(){
+  const arr=sessions(), list=$("histList"); list.innerHTML="";
+  if(!arr.length) list.innerHTML='<div class="empty">No sessions yet — finish a workout and tap Save.</div>';
+  arr.forEach(r=>{
+    const dt=new Date(r.date).toLocaleDateString(undefined,{month:"short",day:"numeric"});
+    const bits=[];
+    if(r.avg!=null) bits.push(`avg ${r.avg}`);
+    if(r.max!=null) bits.push(`max ${r.max}`);
+    if(r.mafSpeed!=null) bits.push(`MAF ${r.mafSpeed} ${r.units}`);
+    if(r.rpe!=null) bits.push(`RPE ${r.rpe}`);
+    const el=document.createElement("div"); el.className="histitem";
+    el.innerHTML=`<div><b>${r.title.replace(/^\d+ · /,"")}</b><br><small>${dt} · ${bits.join(" · ")||"no HR logged"}</small></div>`;
+    list.appendChild(el);
+  });
+  drawChart(arr.filter(r=>r.mafSpeed!=null).reverse());
+}
+function drawChart(data){
+  const w=480,h=160,pad=28;
+  if(data.length<2){ $("chart").innerHTML='<div class="empty">Log MAF speed on 2+ sessions to see your trend.</div>'; return; }
+  const ys=data.map(d=>d.mafSpeed), minY=Math.min(...ys)-0.3, maxY=Math.max(...ys)+0.3;
+  const X=i=>pad+(w-2*pad)*(i/(data.length-1));
+  const Y=v=>h-pad-(h-2*pad)*((v-minY)/(maxY-minY||1));
+  const pts=data.map((d,i)=>`${X(i)},${Y(d.mafSpeed)}`).join(" ");
+  const dots=data.map((d,i)=>`<circle cx="${X(i)}" cy="${Y(d.mafSpeed)}" r="4" fill="#5b8cff"/>`).join("");
+  const labels=data.map((d,i)=>`<text x="${X(i)}" y="${h-8}" fill="#8d97b8" font-size="10" text-anchor="middle">${new Date(d.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</text>`).join("");
+  $("chart").innerHTML=`<svg viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="#5b8cff" stroke-width="3" points="${pts}"/>${dots}${labels}<text x="${pad}" y="14" fill="#8d97b8" font-size="10">${maxY.toFixed(1)}</text><text x="${pad}" y="${h-pad}" fill="#8d97b8" font-size="10">${minY.toFixed(1)} ${data[0].units}</text></svg>`;
+}
+
+/* ===================== EXPORT / COPY ===================== */
+function copyLog(){
+  const over=$("inAvg").value&&HR.overSec?`\nTime over ${PROFILE.ceiling}: ${(HR.overSec/60).toFixed(1)} min`:"";
+  copy(`MAF Pacer — session log
+Workout: ${pendingTitle}
+Date: ${new Date().toLocaleString()}
+MAF ceiling: ${PROFILE.ceiling} bpm
+Avg HR: ${$("inAvg").value||"?"}   Max HR: ${$("inMax").value||"?"}${over}
+MAF speed found: ${$("inMaf").value||"?"} ${PROFILE.units}
+RPE: ${$("inRpe").value||"?"}/10
+Notes: ${$("inNotes").value||"-"}
+
+(Polar Beat screenshots attached separately.)`);
+}
+function exportAll(){ copy(JSON.stringify({profile:PROFILE, sessions:sessions()}, null, 2)); }
+function copy(txt){
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(()=>toast("Copied ✓")).catch(()=>fallbackCopy(txt));
+  else fallbackCopy(txt);
+}
+function fallbackCopy(txt){
+  const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select();
+  try{ document.execCommand("copy"); toast("Copied ✓"); }catch(e){ toast("Copy failed"); }
+  document.body.removeChild(ta);
+}
+let toastT=null;
+function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),1600); }
+
+load();
+</script>
+</body>
+</html>
