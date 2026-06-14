@@ -330,13 +330,11 @@ const WORKOUTS = [
     ]
   },
   {
-    id:"warntest", title:"🔧 Warning Test (cap 110)", tag:"Temporary — feel the warning + alarm, then ignore", isTest:false, cap:110,
+    id:"warntest", title:"🔧 Warning Test (cap 60)", tag:"Temporary — fake low cap to trigger the alarm, then ignore", isTest:false, cap:60,
     stages:[
-      {name:"Slow walk",  type:"walk", speed:2.8, incline:0, sec:120, cue:"Easy walk — keep the number GREEN. (If it's amber already, ease off; this test cap is low on purpose.)"},
-      {name:"Brisk walk", type:"walk", speed:3.8, incline:1, sec:150, cue:"Speed up until the number turns AMBER with a soft double-beep — that's the approaching-cap warning."},
-      {name:"Push over",  type:"jog",  speed:4.6, incline:2, sec:120, cue:"Go a little harder until it turns RED and alarms (over 110). Hold a few sec — it re-alarms ~every 15s."},
-      {name:"Recover",    type:"walk", speed:3.0, incline:0, sec:120, cue:"Slow right down. When you drop back under 110 you'll hear the soft 'recovered' beep."},
-      {name:"Done",       type:"walk", speed:2.5, incline:0, sec:60,  cue:"Test complete 🎉 Use your real workouts to train — this 110 cap is just the demo."}
+      {name:"Move a little", type:"walk", speed:2.5, incline:0, sec:90, cue:"Cap is a fake 60, so you'll go RED + alarm almost immediately — that's the over-cap alert. Listen for it."},
+      {name:"Keep going",    type:"walk", speed:3.0, incline:0, sec:90, cue:"Stay above 60 — it re-alarms every ~15s while you're over. That's the lingering-over reminder."},
+      {name:"Done",          type:"walk", speed:2.5, incline:0, sec:60, cue:"Test complete 🎉 This 60 cap is just the demo — your real workouts use 140."}
     ]
   }
 ];
