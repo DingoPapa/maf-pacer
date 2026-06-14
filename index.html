@@ -391,7 +391,7 @@ const TODAY_ID = "steady40";
 /* ===================== STATE ===================== */
 const $ = id => document.getElementById(id);
 let cur=null, idx=0, endAt=0, remain=0, running=false, tick=null, audio=null, wakeLock=null;
-let recentSpeed=4.0, SESS=null;
+let recentSpeed=4.0, SESS=null, workoutMusicCued=false;
 const HR = { device:null, char:null, bpm:null, connected:false, zone:null, lastOverBeep:0 };
 
 /* ===================== INIT ===================== */
@@ -468,10 +468,11 @@ function newSession(w){
 
 /* ===================== PLAYER ===================== */
 function startWorkout(w){
-  cur=w; idx=0; running=false; recentSpeed=4.0; HR.zone=null; HR.lastOverBeep=0;
+  cur=w; idx=0; running=false; recentSpeed=4.0; HR.zone=null; HR.lastOverBeep=0; workoutMusicCued=false;
   SESS=newSession(w);
   $("plTitle").textContent=w.title;
   show("player"); loadStage(); $("btnPlay").textContent="Start";
+  cueFirstTrack();   // pre-load track 1 so it can auto-start (iOS-gesture safe) when they hit Start
 }
 function loadStage(){
   const s=cur.stages[idx], a=SESS.actuals[idx];
@@ -542,7 +543,14 @@ function startTick(){
     if(remain<=0) nextStageAuto();
   },200);
 }
-function play(){ running=true; $("btnPlay").textContent="Pause"; unlockAudio(); requestWake(); startTick(); }
+function play(){
+  running=true; $("btnPlay").textContent="Pause"; unlockAudio(); requestWake(); startTick();
+  if(!workoutMusicCued){            // auto-start music ONCE, on the first Start; manual control thereafter
+    workoutMusicCued=true;
+    var a=$("audioEl");
+    if(playlist.length && a.paused){ if(a.src) a.play().catch(function(){}); else playTrack(0); }
+  }
+}
 function pause(){ running=false; $("btnPlay").textContent="Resume"; clearInterval(tick); releaseWake(); }
 function nextStageAuto(){
   clearInterval(tick); chime(); flash();
@@ -832,6 +840,13 @@ async function playTrack(i){
   curUrl=URL.createObjectURL(blob);
   var a=$("audioEl"); a.src=curUrl; a.volume=1;
   a.play().catch(function(){ toast("Tap ▶ to start music"); });
+  setMediaSession(); updateMusicUI(); renderMusic();
+}
+async function cueFirstTrack(){
+  if(!playlist.length) return;
+  var a=$("audioEl"); if(curTrack>=0 || a.src) return;   // already have a track loaded → leave it
+  var blob=await getBlob(playlist[0].id); if(!blob) return;
+  curTrack=0; if(curUrl) URL.revokeObjectURL(curUrl); curUrl=URL.createObjectURL(blob); a.src=curUrl;
   setMediaSession(); updateMusicUI(); renderMusic();
 }
 function toggleMusic(){
