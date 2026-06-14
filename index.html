@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'" />
+<meta name="referrer" content="no-referrer" />
+<script>if(self!==top){try{top.location=self.location}catch(e){}document.documentElement.style.display="none";}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -220,7 +223,7 @@
     <div class="card">
       <label>MAF heart-rate ceiling (bpm)</label>
       <input type="number" id="setCeil" inputmode="numeric">
-      <div class="sub" style="margin-top:6px;">180 − age − adjustment. You: 180 − 35 − 5 = 140. Becomes 139 when you turn 36 (Sept 2026).</div>
+      <div class="sub" style="margin-top:6px;">Your ceiling = 180 − age − adjustment. Update it here if it changes (e.g., on a birthday).</div>
     </div>
     <div class="card">
       <label>Treadmill speed units</label>
@@ -230,6 +233,11 @@
       <label>Audio cues</label>
       <div class="toggle"><button id="sndOn" onclick="setSound(true)">On</button><button id="sndOff" onclick="setSound(false)">Off</button></div>
       <div class="sub" style="margin-top:6px;">Beeps count down the last 3 sec of each stage, chime on changes, and alert when HR goes over the ceiling.</div>
+    </div>
+    <div class="card">
+      <label>Your data</label>
+      <div class="sub" style="margin-bottom:10px;">Everything is stored only in this browser, on this device — nothing is ever uploaded. Anyone who can unlock your phone can open it. Wipe it anytime:</div>
+      <button class="btn-danger" style="width:100%;" onclick="clearData()">Clear all saved data</button>
     </div>
     <div class="navbtns"><button class="btn-ghost" onclick="show('about')">How to use</button><button class="btn-primary" onclick="applySettings(); show('home');">Save</button></div>
   </section>
@@ -660,6 +668,12 @@ function copyLog(){
   copy(L.join("\n"));
 }
 function exportAll(){ copy(JSON.stringify({profile:PROFILE, sessions:sessions()}, null, 2)); }
+function clearData(){
+  if(confirm("Delete ALL saved sessions and settings from this device? This can't be undone.")){
+    localStorage.removeItem("maf_sessions"); localStorage.removeItem("maf_profile");
+    renderHistory(); toast("All data cleared");
+  }
+}
 function copy(txt){
   if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(()=>toast("Copied ✓")).catch(()=>fallbackCopy(txt));
   else fallbackCopy(txt);
