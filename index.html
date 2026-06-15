@@ -340,12 +340,12 @@ const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3 };
    speed:null => a "hold" stage: dial in your own speed with the steppers */
 const WORKOUTS = [
   {
-    id:"steady40", title:"1 · Steady Base — 40 min", tag:"Your main aerobic run · MAF pace ~4.2", isTest:false,
+    id:"today", title:"Steady Base — 42 min", tag:"Tomorrow's plan (Jun 16) · settle into HR 132–138", isTest:false,
     stages:[
-      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk. Let your heart rate settle."},
-      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.8, incline:1, sec:300, cue:"Settle into an easy shuffle."},
-      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.2, incline:1, sec:1500, cue:"Hold HR 130–140. If it climbs over 140, drop the speed. This is the work."},
-      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
+      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk. Let your heart rate settle into the low 100s."},
+      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.8, incline:1, sec:240, cue:"Easy shuffle to wake the legs up."},
+      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.2, incline:1, sec:1680, cue:"Hold HR 132–138. If you're under 132 and it feels easy, nudge up to 4.3. Over 140 → drop the speed."},
+      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish. Nice work."}
     ]
   },
   {
@@ -380,7 +380,7 @@ const WORKOUTS = [
 ];
 
 /* Which workout is featured under "Today's workout" (Claude sets this each cycle). */
-const TODAY_ID = "steady40";
+const TODAY_ID = "today";
 
 /* ===================== STATE ===================== */
 const $ = id => document.getElementById(id);
