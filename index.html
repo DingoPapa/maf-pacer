@@ -171,6 +171,7 @@
       </div>
       <div class="stepbadge" id="plTitle" style="margin-top:6px;">Workout</div>
       <div class="progwrap"><div class="progbar" id="progbar"></div></div>
+      <div class="stepbadge" id="recInd" style="margin-top:6px;"></div>
     </div>
 
     <div class="stagecard walk" id="stageCard">
@@ -388,7 +389,7 @@ const TODAY_ID = "today";
 const $ = id => document.getElementById(id);
 let cur=null, idx=0, endAt=0, remain=0, running=false, tick=null, audio=null, wakeLock=null;
 let recentSpeed=4.0, SESS=null, workoutMusicCued=false;
-const HR = { device:null, char:null, bpm:null, connected:false, zone:null, lastOverBeep:0 };
+const HR = { device:null, char:null, bpm:null, connected:false, zone:null, lastOverBeep:0, lastSampleTs:0, staleWarned:false };
 
 /* ===================== INIT ===================== */
 function load(){
@@ -484,6 +485,7 @@ function loadStage(){
   $("nextLine").textContent = n ? `Up next: ${n.name} · ${n.speed===null?"hold":n.speed.toFixed(1)+" "+PROFILE.units} · ${n.incline}%` : "Up next: finish 🏁";
   updateProgress();
   reactToMood();   // switch the music pool to match this stage's intensity
+  updateRec();
 }
 function renderStageValues(){
   const s=cur.stages[idx], a=SESS.actuals[idx];
@@ -535,7 +537,7 @@ function startTick(){
   clearInterval(tick); endAt=Date.now()+remain*1000;
   tick=setInterval(()=>{
     remain=Math.max(0,Math.round((endAt-Date.now())/1000));
-    renderTimer(); updateProgress();
+    renderTimer(); updateProgress(); updateRec();
     if(remain<=3&&remain>0) beep(880,90);
     if(remain<=0) nextStageAuto();
   },200);
@@ -630,7 +632,7 @@ function onHRValue(e){
   const v=e.target.value, flags=v.getUint8(0);
   let i=1, bpm;
   if(flags&0x01){ bpm=v.getUint16(i,true); i+=2; } else { bpm=v.getUint8(i); i+=1; }  // bit0: HR format
-  HR.bpm=bpm;
+  HR.bpm=bpm; HR.lastSampleTs=Date.now(); HR.staleWarned=false;
   if(running && SESS){
     SESS.hr.push({ t:Math.round(elapsedSec()), bpm, idx });
     const z=hrZone(bpm);
@@ -661,6 +663,21 @@ function setHRUI(){
   const hb=$("homeBpm"); hb.classList.remove("over","near"); if(z==="over") hb.classList.add("over"); else if(z==="near") hb.classList.add("near");
   $("homeConnect").textContent=HR.connected?"Reconnect strap":"Connect Polar H10";
   const m=$("mBpm"); m.textContent=val; m.classList.remove("over","under","near"); if(z) m.classList.add(z);
+  updateRec();
+}
+function updateRec(){
+  var el=$("recInd"); if(!el) return;
+  if(!cur){ el.textContent=""; return; }
+  var n=SESS?SESS.hr.length:0;
+  if(!HR.connected){ el.textContent="○ No strap — connect for HR recording"; el.style.color="var(--muted)"; return; }
+  if(!running){ el.textContent="● Strap live — recording begins at Start"; el.style.color="var(--good)"; return; }
+  var stale = HR.lastSampleTs && (Date.now()-HR.lastSampleTs>6000);
+  if(stale){
+    if(!HR.staleWarned){ HR.staleWarned=true; beep(330,220); }
+    el.textContent="⚠ HR signal lost — check the strap ("+n+" recorded)"; el.style.color="var(--over)";
+  } else {
+    el.textContent="● Recording · "+n+" readings"; el.style.color="var(--good)";
+  }
 }
 function onHRDisconnect(){ HR.connected=false; setHRUI(); toast("Strap disconnected — tap Reconnect"); }
 
@@ -689,7 +706,17 @@ document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==
 /* ===================== SESSIONS / HISTORY ===================== */
 let pendingTitle="Workout", pendingIsTest=false, currentSavedId=null;
 function sessions(){ try{ return JSON.parse(localStorage.getItem("maf_sessions")||"[]"); }catch(e){ return []; } }
-function saveSessions(arr){ localStorage.setItem("maf_sessions", JSON.stringify(arr)); }
+function thinTrace(hr, sec){ var out=[], seen=-1; for(var i=0;i<hr.length;i++){ var b=Math.floor(hr[i][0]/sec); if(b!==seen){ seen=b; out.push(hr[i]); } } return out; }
+function saveSessions(arr){
+  try{ localStorage.setItem("maf_sessions", JSON.stringify(arr)); return true; }
+  catch(e){                                   // storage full: thin OLDER sessions' full traces, keep the newest detailed
+    for(var i=arr.length-1;i>=1;i--){
+      if(arr[i].hr && arr[i].hr.length>120){ arr[i].hr=thinTrace(arr[i].hr,30); }
+      try{ localStorage.setItem("maf_sessions", JSON.stringify(arr)); return true; }catch(e2){}
+    }
+    try{ localStorage.setItem("maf_sessions", JSON.stringify(arr)); return true; }catch(e3){ toast("Storage full — couldn't save"); return false; }
+  }
+}
 function numOrNull(v){ const n=parseFloat(v); return isNaN(n)?null:n; }
 function autoSaveSession(){            // called at end of every run — saves immediately
   if(!SESS) return;
@@ -701,7 +728,7 @@ function autoSaveSession(){            // called at end of every run — saves i
     avg:st?st.avg:null, max:st?st.max:null, min:st?st.min:null, overSec:st?st.overTotal:null,
     mafSpeed:numOrNull($("inMaf").value), rpe:numOrNull($("inRpe").value), notes:$("inNotes").value.trim(),
     perStage: st? st.per.map(function(p){return {name:p.name, plan:{speed:p.speed,incline:p.incline}, actual:p.actual, avg:p.avg, max:p.max, min:p.min, over:Math.round(p.over)};}):[],
-    adjustments: SESS.adjustments||[], hr30: downsample()
+    adjustments: SESS.adjustments||[], hr: SESS.hr.map(function(s){return [s.t,s.bpm];})   // full per-second trace
   };
   var arr=sessions(); arr.unshift(rec); saveSessions(arr); currentSavedId=rec.id; renderHistory();
 }
