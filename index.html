@@ -215,8 +215,9 @@
     <h1>Nice work 💪</h1>
     <div class="sub" id="sumLine">—</div>
     <div class="card" style="margin-top:14px;">
-      <h2 style="margin-top:0;">Log it</h2>
-      <div class="sub" id="autoNote" style="margin:-4px 0 10px; display:none;"></div>
+      <h2 style="margin-top:0;">Saved automatically ✓</h2>
+      <div class="sub" style="margin:-4px 0 6px;">Your run is already in your history. Add details below if you like (optional), then tap Done.</div>
+      <div class="sub" id="autoNote" style="margin:0 0 10px; display:none;"></div>
       <div class="grid2">
         <div><label>Avg HR</label><input type="number" id="inAvg" inputmode="numeric" placeholder="e.g. 134"></div>
         <div><label>Max HR</label><input type="number" id="inMax" inputmode="numeric" placeholder="e.g. 145"></div>
@@ -226,14 +227,14 @@
         <div><label>Effort (RPE 1–10)</label><input type="number" id="inRpe" inputmode="numeric" min="1" max="10" placeholder="e.g. 4"></div>
       </div>
       <div style="margin-top:10px;"><label>Notes</label><textarea id="inNotes" placeholder="Felt easy. Slowed on the long hold when HR hit 143."></textarea></div>
-      <button class="btn-primary" style="width:100%; margin-top:12px;" onclick="saveSession()">Save session</button>
+      <button class="btn-primary" style="width:100%; margin-top:12px;" onclick="saveSession()">Done</button>
     </div>
     <div class="card">
       <h2 style="margin-top:0;">Send to Claude</h2>
       <div class="sub" style="margin-bottom:10px;">Copies your full session — per-stage HR, every speed/incline adjustment, and BPM stats — for planning your next workout.</div>
       <button style="width:100%;" onclick="copyLog()">📋 Copy session log</button>
     </div>
-    <div class="navbtns"><button class="btn-ghost" onclick="show('home')">Home</button><button class="btn-ghost" onclick="show('history')">Progress</button></div>
+    <div class="navbtns"><button class="btn-ghost" onclick="commitDetails(); show('home')">Home</button><button class="btn-ghost" onclick="commitDetails(); show('history')">Progress</button></div>
   </section>
 
   <!-- ============ HISTORY ============ -->
@@ -463,7 +464,7 @@ function newSession(w){
 
 /* ===================== PLAYER ===================== */
 function startWorkout(w){
-  cur=w; idx=0; running=false; recentSpeed=4.0; HR.zone=null; HR.lastOverBeep=0; workoutMusicCued=false;
+  cur=w; idx=0; running=false; recentSpeed=4.0; HR.zone=null; HR.lastOverBeep=0; workoutMusicCued=false; currentSavedId=null;
   SESS=newSession(w);
   $("plTitle").textContent=w.title;
   show("player"); loadStage(); $("btnPlay").textContent="Start";
@@ -598,11 +599,15 @@ function endWorkout(manual){
     let best=-1; SESS.plan.forEach((p,i)=>{ if(p.type==="jog" && p.sec>best){ best=p.sec; suggest=SESS.actuals[i].speed; } });
   }
   if(suggest!=null) $("inMaf").value=suggest;
+  autoSaveSession();          // fool-proof: persist immediately so a run can never be lost
   show("summary");
 }
 function exitWorkout(){
   const inProgress = SESS && (running || (SESS.hr && SESS.hr.length>0) || elapsedSec()>3);
-  if(inProgress && !confirm("Leave this workout and go Home? Progress won't be saved.")) return;
+  if(inProgress){
+    if(!confirm("End this run now? It will be saved to your history.")) return;
+    endWorkout(true); return;  // ends + auto-saves + shows summary (delete later from history if unwanted)
+  }
   running=false; clearInterval(tick); releaseWake(); $("btnPlay").textContent="Start";
   show("home");
 }
@@ -682,40 +687,51 @@ function releaseWake(){ try{ if(wakeLock){ wakeLock.release(); wakeLock=null; } 
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&running) requestWake(); });
 
 /* ===================== SESSIONS / HISTORY ===================== */
-let pendingTitle="Workout", pendingIsTest=false;
+let pendingTitle="Workout", pendingIsTest=false, currentSavedId=null;
 function sessions(){ try{ return JSON.parse(localStorage.getItem("maf_sessions")||"[]"); }catch(e){ return []; } }
+function saveSessions(arr){ localStorage.setItem("maf_sessions", JSON.stringify(arr)); }
 function numOrNull(v){ const n=parseFloat(v); return isNaN(n)?null:n; }
-function saveSession(){
-  const arr=sessions(), st=SESS?SESS.stats:null;
-  arr.unshift({
-    date:new Date().toISOString(), title:pendingTitle, isTest:pendingIsTest,
-    ceiling:activeCeiling(), units:PROFILE.units, durationSec:SESS?SESS.endSec:null,
-    avg:numOrNull($("inAvg").value), max:numOrNull($("inMax").value),
-    min:st?st.min:null, overSec:st?st.overTotal:null,
+function autoSaveSession(){            // called at end of every run — saves immediately
+  if(!SESS) return;
+  var st=SESS.stats;
+  if((SESS.endSec||0)<10 && (!st||st.avg==null) && (!SESS.adjustments||!SESS.adjustments.length)){ currentSavedId=null; return; } // nothing meaningful happened
+  var rec={
+    id:"s"+Date.now(), date:new Date().toISOString(), title:pendingTitle, isTest:pendingIsTest,
+    ceiling:activeCeiling(), units:PROFILE.units, durationSec:SESS.endSec,
+    avg:st?st.avg:null, max:st?st.max:null, min:st?st.min:null, overSec:st?st.overTotal:null,
     mafSpeed:numOrNull($("inMaf").value), rpe:numOrNull($("inRpe").value), notes:$("inNotes").value.trim(),
-    perStage: st? st.per.map(p=>({name:p.name, plan:{speed:p.speed,incline:p.incline}, actual:p.actual, avg:p.avg, max:p.max, min:p.min, over:Math.round(p.over)})) : [],
-    adjustments: SESS?SESS.adjustments:[],
-    hr30: SESS?downsample():[]
-  });
-  localStorage.setItem("maf_sessions", JSON.stringify(arr));
-  toast("Saved ✓"); renderHistory();
+    perStage: st? st.per.map(function(p){return {name:p.name, plan:{speed:p.speed,incline:p.incline}, actual:p.actual, avg:p.avg, max:p.max, min:p.min, over:Math.round(p.over)};}):[],
+    adjustments: SESS.adjustments||[], hr30: downsample()
+  };
+  var arr=sessions(); arr.unshift(rec); saveSessions(arr); currentSavedId=rec.id; renderHistory();
+}
+function commitDetails(){             // write optional notes/RPE/MAF-speed into the already-saved record
+  if(!currentSavedId) return;
+  var arr=sessions();
+  for(var i=0;i<arr.length;i++){ if(arr[i].id===currentSavedId){ arr[i].mafSpeed=numOrNull($("inMaf").value); arr[i].rpe=numOrNull($("inRpe").value); arr[i].notes=$("inNotes").value.trim(); saveSessions(arr); renderHistory(); return; } }
+}
+function saveSession(){ commitDetails(); toast("Saved ✓"); show("home"); }   // summary "Done" button
+function deleteSession(i){
+  if(!confirm("Delete this saved session? This can't be undone.")) return;
+  var arr=sessions(); arr.splice(i,1); saveSessions(arr); renderHistory(); toast("Session deleted");
 }
 function renderHistory(){
-  const arr=sessions(), list=$("histList"); list.innerHTML="";
-  if(!arr.length) list.innerHTML='<div class="empty">No sessions yet — finish a workout and tap Save.</div>';
-  arr.forEach(r=>{
-    const dt=new Date(r.date).toLocaleDateString(undefined,{month:"short",day:"numeric"});
-    const bits=[];
-    if(r.avg!=null) bits.push(`avg ${r.avg}`);
-    if(r.max!=null) bits.push(`max ${r.max}`);
-    if(r.overSec) bits.push(`${(r.overSec/60).toFixed(1)}m over`);
-    if(r.mafSpeed!=null) bits.push(`MAF ${r.mafSpeed}${r.units}`);
-    if(r.adjustments&&r.adjustments.length) bits.push(`${r.adjustments.length} adj`);
-    const el=document.createElement("div"); el.className="histitem";
-    el.innerHTML=`<div><b>${r.title.replace(/^\d+ · /,"")}</b><br><small>${dt} · ${bits.join(" · ")||"no HR logged"}</small></div>`;
-    list.appendChild(el);
+  var arr=sessions(), list=$("histList"); list.innerHTML="";
+  if(!arr.length) list.innerHTML='<div class="empty">No sessions yet — finish a run and it saves here automatically.</div>';
+  arr.forEach(function(r,i){
+    var dt=new Date(r.date).toLocaleDateString(undefined,{month:"short",day:"numeric"});
+    var bits=[];
+    if(r.avg!=null) bits.push("avg "+r.avg);
+    if(r.max!=null) bits.push("max "+r.max);
+    if(r.overSec) bits.push((r.overSec/60).toFixed(1)+"m over");
+    if(r.mafSpeed!=null) bits.push("MAF "+r.mafSpeed+r.units);
+    if(r.adjustments&&r.adjustments.length) bits.push(r.adjustments.length+" adj");
+    var el=document.createElement("div"); el.className="histitem";
+    var info=document.createElement("div"); info.style.flex="1"; info.innerHTML="<b>"+r.title.replace(/^\d+ · /,"")+"</b><br><small>"+dt+" · "+(bits.join(" · ")||"no HR logged")+"</small>";
+    var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.title="Delete this session"; del.onclick=function(){ deleteSession(i); };
+    el.appendChild(info); el.appendChild(del); list.appendChild(el);
   });
-  drawChart(arr.filter(r=>r.mafSpeed!=null).reverse());
+  drawChart(arr.filter(function(r){return r.mafSpeed!=null;}).reverse());
 }
 function drawChart(data){
   const w=480,h=160,pad=28;
