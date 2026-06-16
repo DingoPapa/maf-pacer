@@ -14,9 +14,18 @@
 <title>MAF Pacer</title>
 <style>
   :root{
-    --bg:#0b1020; --panel:#141a2e; --panel2:#1b2440; --ink:#eaf0ff; --muted:#8d97b8;
-    --walk:#2f6df6; --jog:#22c55e; --hold:#f59e0b; --over:#ef4444; --line:#27304f;
-    --accent:#5b8cff; --good:#22c55e; --amber:#f59e0b;
+    /* neutral graphite surfaces — let the zone colors be the only signal */
+    --bg:#101216; --panel:#181B21; --panel2:#20242C; --surface3:#272C35;
+    --ink:#F2F4F8; --muted:#9AA3B2; --dim:rgba(255,255,255,.40); --line:rgba(255,255,255,.10);
+    --accent:#5B8CFF;
+    /* locked zone palette (live readout AND every chart use these exact hues) */
+    --z-easy:#4FA3FF; --z-aerobic:#34C759; --z-sweet:#FFB02E; --z-over:#FF5A52;
+    /* legacy aliases → zone tokens (old code keeps working) */
+    --good:#34C759; --amber:#FFB02E; --over:#FF5A52; --walk:#4FA3FF; --jog:#34C759; --hold:#FFB02E;
+    /* 8pt spacing scale */
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
+    /* radius scale */
+    --r-sm:8px; --r-md:14px; --r-lg:20px; --r-pill:999px;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; height:100%;}
@@ -170,6 +179,31 @@
   .btn-good{ box-shadow:0 4px 14px rgba(22,197,94,.26); }
   .stagecard{ box-shadow:0 10px 34px rgba(0,0,0,.36); }
   .tabbar button.active .ico{ transform:translateY(-1px); }
+
+  /* ===== v2.2: intentional spacing + run-screen hierarchy ===== */
+  h1{ font-size:22px; }
+  h2{ font-size:13px; margin:var(--s5) 0 var(--s2); }
+  .card{ border-radius:var(--r-md); padding:var(--s4); margin-bottom:var(--s3); }
+  .stat,.hero,.stagecard{ border-radius:var(--r-md); }
+  .statgrid{ gap:var(--s3); }
+  /* one legible run timer (stage countdown), top-right, deliberate size */
+  .pl-timewrap{ flex:0; text-align:right; min-width:78px; }
+  .pl-tlabel{ font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); line-height:1.2; }
+  .pl-time{ font-size:36px; font-weight:700; color:var(--ink); line-height:1; font-variant-numeric:tabular-nums; }
+  .pl-stage{ font-size:13px; }
+  /* HR hero — zone-colored number + plain-language verdict (number, verdict, marker always agree) */
+  .hrbig{ font-size:84px; }
+  .hrbig.z-easy{ color:var(--z-easy); } .hrbig.z-aerobic{ color:var(--z-aerobic); } .hrbig.z-sweet{ color:var(--z-sweet); } .hrbig.z-over{ color:var(--z-over); }
+  .hrbig.z-sweet,.hrbig.z-over{ animation:hrpulse 1s infinite; }
+  .verdict{ font-size:18px; font-weight:800; letter-spacing:.03em; margin-top:var(--s1); min-height:22px; color:var(--muted); }
+  .verdict.z-easy{ color:var(--z-easy); } .verdict.z-aerobic{ color:var(--z-aerobic); } .verdict.z-sweet{ color:var(--z-sweet); } .verdict.z-over{ color:var(--z-over); }
+  /* taller zone meter */
+  .zm-track{ height:18px; border-radius:9px; }
+  .zm-marker{ height:26px; top:-4px; width:3px; background:#fff; }
+  /* subtle stage tints so they never fight the HR color */
+  .stagecard.walk{ background:radial-gradient(130% 120% at 50% 0%, rgba(79,163,255,.10), transparent 72%), var(--panel); }
+  .stagecard.jog{ background:radial-gradient(130% 120% at 50% 0%, rgba(52,199,89,.10), transparent 72%), var(--panel); }
+  .stagecard.hold{ background:radial-gradient(130% 120% at 50% 0%, rgba(255,176,46,.11), transparent 72%), var(--panel); }
 </style>
 </head>
 <body>
@@ -213,7 +247,7 @@
       <div class="pl-row">
         <button class="btn-ghost iconbtn" id="btnExit" onclick="exitWorkout()">← Home</button>
         <div class="pl-stage"><span id="plTitle">Workout</span> · <span id="plStep">1/1</span></div>
-        <div class="pl-time" id="timer">00:00</div>
+        <div class="pl-timewrap"><div class="pl-tlabel">stage left</div><div class="pl-time" id="timer">00:00</div></div>
       </div>
       <div class="progwrap"><div class="progbar" id="progbar"></div></div>
       <div class="recind" id="recInd"></div>
@@ -222,15 +256,16 @@
     <div class="stagecard walk" id="stageCard">
       <div class="stagename" id="stageName">—</div>
       <div class="hrhero"><div class="hrbig bpm" id="mBpm">––</div><div class="hrcap">bpm · keep ≤ <span id="mCeil">140</span></div></div>
+      <div class="verdict" id="verdict"></div>
       <div class="zonemeter">
         <div class="zm-track">
-          <div class="zm-seg" style="flex:10;background:rgba(139,149,184,.30)"></div>
-          <div class="zm-seg" style="flex:5;background:rgba(34,197,94,.50)"></div>
-          <div class="zm-seg" style="flex:5;background:rgba(245,158,11,.55)"></div>
-          <div class="zm-seg" style="flex:6;background:rgba(239,68,68,.50)"></div>
+          <div class="zm-seg" style="flex:15;background:rgba(79,163,255,.40)"></div>
+          <div class="zm-seg" style="flex:5;background:rgba(52,199,89,.55)"></div>
+          <div class="zm-seg" style="flex:5;background:rgba(255,176,46,.60)"></div>
+          <div class="zm-seg" style="flex:6;background:rgba(255,90,82,.55)"></div>
           <div class="zm-marker" id="zmMarker" style="display:none;"></div>
         </div>
-        <div class="zm-labels"><span>easy</span><span>aerobic</span><span>sweet</span><span>over</span></div>
+        <div class="zm-labels"><span>easy</span><span>aerobic</span><span>sweet</span><span>140 cap</span></div>
       </div>
       <div class="cue" id="cue">—</div>
       <div class="adjrow">
@@ -766,6 +801,9 @@ function hrZone(bpm){
   return "under";
 }
 function warnBeep(){ beep(880,70); setTimeout(function(){beep(880,70);},110); }
+function mafZone(bpm){ if(bpm==null) return null; var c=activeCeiling(); if(bpm>c) return "over"; if(bpm>=c-5) return "sweet"; if(bpm>=c-10) return "aerobic"; return "easy"; }
+function zoneColor(z){ return z==="over"?"var(--z-over)":z==="sweet"?"var(--z-sweet)":z==="aerobic"?"var(--z-aerobic)":"var(--z-easy)"; }
+function verdictText(z){ return z==="over"?"SLOW DOWN":z==="sweet"?"EASE UP":z==="aerobic"?"IN RANGE":"PUSH A BIT"; }
 function setHRUI(){
   const val=HR.bpm==null?"––":HR.bpm, z=hrZone(HR.bpm);
   $("homeBpm").textContent=val;
@@ -773,8 +811,9 @@ function setHRUI(){
   $("homeHrLabel").textContent=HR.connected?(HR.bpm!=null?"Live":"Connected"):"Not connected";
   const hb=$("homeBpm"); hb.classList.remove("over","near"); if(z==="over") hb.classList.add("over"); else if(z==="near") hb.classList.add("near");
   $("homeConnect").textContent=HR.connected?"Reconnect strap":"Connect Polar H10";
-  const m=$("mBpm"); m.textContent=val; m.classList.remove("over","under","near"); if(z) m.classList.add(z);
-  var mk=$("zmMarker"); if(mk){ if(HR.bpm==null){ mk.style.display="none"; } else { var cc=activeCeiling(), pp=Math.max(0,Math.min(1,(HR.bpm-(cc-20))/26)); mk.style.left=(pp*100)+"%"; mk.style.display="block"; } }
+  const m=$("mBpm"); m.textContent=val; m.className="hrbig bpm"; var mz=mafZone(HR.bpm); if(mz) m.classList.add("z-"+mz);
+  var vd=$("verdict"); if(vd){ if(mz){ vd.textContent=verdictText(mz); vd.className="verdict z-"+mz; } else { vd.textContent=""; vd.className="verdict"; } }
+  var mk=$("zmMarker"); if(mk){ if(HR.bpm==null){ mk.style.display="none"; } else { var cc=activeCeiling(), pp=Math.max(0,Math.min(1,(HR.bpm-(cc-25))/31)); mk.style.left=(pp*100)+"%"; mk.style.background=zoneColor(mz); mk.style.display="block"; } }
   updateRec();
 }
 function updateRec(){
