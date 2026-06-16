@@ -152,6 +152,24 @@
   .kv{ display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px; }
   .kv .k{ color:var(--muted); }
   .hmain{ flex:1; cursor:pointer; overflow:hidden; }
+
+  /* ===== v2.1: kill double-tap zoom + HR zone meter + polish ===== */
+  html,body{ touch-action:manipulation; }
+  button,.adjtile,.step button,input,label,.tabbar button,.hmain,.zm-track{ touch-action:manipulation; -webkit-touch-callout:none; }
+  .zonemeter{ width:100%; padding:0 4px; margin:10px 0 2px; }
+  .zm-track{ position:relative; display:flex; height:12px; border-radius:7px; overflow:hidden; box-shadow:inset 0 0 0 1px rgba(255,255,255,.07); }
+  .zm-seg{ height:100%; }
+  .zm-marker{ position:absolute; top:-4px; width:3px; height:20px; background:#fff; border-radius:2px; box-shadow:0 0 6px rgba(0,0,0,.75); transform:translateX(-50%); transition:left .35s ease; }
+  .zm-labels{ display:flex; justify-content:space-between; font-size:9px; color:var(--muted); margin-top:4px; text-transform:uppercase; letter-spacing:.04em; }
+  /* professional depth + type */
+  h1{ letter-spacing:-0.02em; }
+  .card{ box-shadow:0 2px 14px rgba(0,0,0,.25); }
+  .stat{ box-shadow:0 2px 10px rgba(0,0,0,.2); }
+  .hero{ box-shadow:0 6px 22px rgba(59,108,240,.18); }
+  .btn-primary{ box-shadow:0 4px 14px rgba(59,108,240,.35); }
+  .btn-good{ box-shadow:0 4px 14px rgba(22,197,94,.26); }
+  .stagecard{ box-shadow:0 10px 34px rgba(0,0,0,.36); }
+  .tabbar button.active .ico{ transform:translateY(-1px); }
 </style>
 </head>
 <body>
@@ -204,6 +222,16 @@
     <div class="stagecard walk" id="stageCard">
       <div class="stagename" id="stageName">—</div>
       <div class="hrhero"><div class="hrbig bpm" id="mBpm">––</div><div class="hrcap">bpm · keep ≤ <span id="mCeil">140</span></div></div>
+      <div class="zonemeter">
+        <div class="zm-track">
+          <div class="zm-seg" style="flex:10;background:rgba(139,149,184,.30)"></div>
+          <div class="zm-seg" style="flex:5;background:rgba(34,197,94,.50)"></div>
+          <div class="zm-seg" style="flex:5;background:rgba(245,158,11,.55)"></div>
+          <div class="zm-seg" style="flex:6;background:rgba(239,68,68,.50)"></div>
+          <div class="zm-marker" id="zmMarker" style="display:none;"></div>
+        </div>
+        <div class="zm-labels"><span>easy</span><span>aerobic</span><span>sweet</span><span>over</span></div>
+      </div>
       <div class="cue" id="cue">—</div>
       <div class="adjrow">
         <div class="adjtile">
@@ -746,6 +774,7 @@ function setHRUI(){
   const hb=$("homeBpm"); hb.classList.remove("over","near"); if(z==="over") hb.classList.add("over"); else if(z==="near") hb.classList.add("near");
   $("homeConnect").textContent=HR.connected?"Reconnect strap":"Connect Polar H10";
   const m=$("mBpm"); m.textContent=val; m.classList.remove("over","under","near"); if(z) m.classList.add(z);
+  var mk=$("zmMarker"); if(mk){ if(HR.bpm==null){ mk.style.display="none"; } else { var cc=activeCeiling(), pp=Math.max(0,Math.min(1,(HR.bpm-(cc-20))/26)); mk.style.left=(pp*100)+"%"; mk.style.display="block"; } }
   updateRec();
 }
 function updateRec(){
