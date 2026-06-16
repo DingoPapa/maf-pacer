@@ -728,8 +728,9 @@ function renderHistory(){
     if(r.adjustments&&r.adjustments.length) bits.push(r.adjustments.length+" adj");
     var el=document.createElement("div"); el.className="histitem";
     var info=document.createElement("div"); info.style.flex="1"; info.innerHTML="<b>"+r.title.replace(/^\d+ · /,"")+"</b><br><small>"+dt+" · "+(bits.join(" · ")||"no HR logged")+"</small>";
+    var cp=document.createElement("button"); cp.className="btn-ghost"; cp.style.cssText="flex:0;padding:4px 10px;font-size:15px;"; cp.textContent="📋"; cp.title="Copy this session's log (to send to Claude)"; cp.onclick=function(){ copySavedLog(i); };
     var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.title="Delete this session"; del.onclick=function(){ deleteSession(i); };
-    el.appendChild(info); el.appendChild(del); list.appendChild(el);
+    el.appendChild(info); el.appendChild(cp); el.appendChild(del); list.appendChild(el);
   });
   drawChart(arr.filter(function(r){return r.mafSpeed!=null;}).reverse());
 }
@@ -746,40 +747,47 @@ function drawChart(data){
 }
 
 /* ===================== EXPORT / COPY ===================== */
-function copyLog(){
-  const u=PROFILE.units, st=SESS?SESS.stats:null, L=[];
+function fmtLog(r){
+  var u=r.units||"mph", L=[];
   L.push("MAF Pacer — session");
-  L.push("Date: "+new Date().toLocaleString());
-  L.push("Workout: "+pendingTitle);
-  L.push("MAF ceiling: "+activeCeiling()+" bpm");
-  if(st && st.avg!=null) L.push(`Overall HR: avg ${st.avg}, max ${st.max}, min ${st.min} | ${(st.overTotal/60).toFixed(1)} min over ${activeCeiling()} | duration ${fmt(SESS.endSec)}`);
-  else L.push("Overall HR: avg "+($("inAvg").value||"?")+", max "+($("inMax").value||"?")+" (entered manually)");
+  L.push("Date: "+new Date(r.date).toLocaleString());
+  L.push("Workout: "+r.title);
+  L.push("MAF ceiling: "+r.ceiling+" bpm");
+  if(r.avg!=null) L.push("Overall HR: avg "+r.avg+", max "+r.max+", min "+r.min+" | "+((r.overSec||0)/60).toFixed(1)+" min over "+r.ceiling+" | duration "+fmt(r.durationSec||0));
+  else L.push("Overall HR: not recorded (strap not connected) · duration "+fmt(r.durationSec||0));
   L.push("");
-  if(st){
+  if(r.perStage && r.perStage.length){
     L.push("PER STAGE  (plan -> actual | HR avg/max | min over ceiling):");
-    st.per.forEach(p=>{
-      const planStr=(p.speed===null?"hold":p.speed.toFixed(1))+"/"+p.incline+"%";
-      const dev=(p.actual.speed!==p.speed)||(p.actual.incline!==p.incline);
-      const actStr=dev?((p.actual.speed==null?"hold":p.actual.speed.toFixed(1))+"/"+p.actual.incline+"%"):"as planned";
-      const hr=p.avg!=null?`HR ${p.avg}/${p.max}`:"no HR";
-      L.push(`  ${p.name}: ${planStr} -> ${actStr} | ${hr} | ${(p.over/60).toFixed(1)}m over`);
+    r.perStage.forEach(function(p){
+      var planStr=(p.plan.speed===null||p.plan.speed===undefined?"hold":Number(p.plan.speed).toFixed(1))+"/"+p.plan.incline+"%";
+      var dev=(p.actual.speed!==p.plan.speed)||(p.actual.incline!==p.plan.incline);
+      var actStr=dev?((p.actual.speed==null?"hold":Number(p.actual.speed).toFixed(1))+"/"+p.actual.incline+"%"):"as planned";
+      var hr=p.avg!=null?("HR "+p.avg+"/"+p.max):"no HR";
+      L.push("  "+p.name+": "+planStr+" -> "+actStr+" | "+hr+" | "+((p.over||0)/60).toFixed(1)+"m over");
     });
     L.push("");
   }
-  if(SESS && SESS.adjustments.length){
+  if(r.adjustments && r.adjustments.length){
     L.push("ADJUSTMENTS (time · stage · change · HR then):");
-    SESS.adjustments.forEach(a=>{
-      const un=a.variable==='speed'?(' '+u):'%';
-      const pl=a.planned===null?'hold':(a.planned+un);
-      L.push(`  ${a.mmss}  ${a.stage}  ${a.variable}: ${pl} -> ${a.actual}${un}  (HR ${a.bpm==null?'?':a.bpm})`);
+    r.adjustments.forEach(function(a){
+      var un=a.variable==='speed'?(' '+u):'%';
+      var pl=a.planned===null?'hold':(a.planned+un);
+      L.push("  "+a.mmss+"  "+a.stage+"  "+a.variable+": "+pl+" -> "+a.actual+un+"  (HR "+(a.bpm==null?'?':a.bpm)+")");
     });
     L.push("");
-  } else if(SESS){ L.push("ADJUSTMENTS: none — ran as planned."); L.push(""); }
-  L.push("MAF speed held: "+($("inMaf").value||"?")+" "+u);
-  L.push("RPE: "+($("inRpe").value||"?")+"/10");
-  L.push("Notes: "+($("inNotes").value||"-"));
-  copy(L.join("\n"));
+  } else { L.push("ADJUSTMENTS: none — ran as planned."); L.push(""); }
+  L.push("MAF speed held: "+(r.mafSpeed!=null?r.mafSpeed:"?")+" "+u);
+  L.push("RPE: "+(r.rpe!=null?r.rpe:"?")+"/10");
+  L.push("Notes: "+(r.notes||"-"));
+  return L.join("\n");
 }
+function copyLog(){                 // summary screen — copies the just-saved run
+  commitDetails();
+  var arr=sessions(), rec=null;
+  for(var i=0;i<arr.length;i++){ if(arr[i].id===currentSavedId){ rec=arr[i]; break; } }
+  if(rec) copy(fmtLog(rec)); else toast("Nothing to copy yet");
+}
+function copySavedLog(i){ var r=sessions()[i]; if(r) copy(fmtLog(r)); }
 function exportAll(){ copy(JSON.stringify({profile:PROFILE, sessions:sessions()}, null, 2)); }
 function clearData(){
   if(confirm("Delete ALL saved sessions, settings, and music from this device? This can't be undone.")){
