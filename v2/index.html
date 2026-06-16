@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; media-src blob:; connect-src 'none'; base-uri 'none'; form-action 'none'" />
+<meta name="referrer" content="no-referrer" />
+<script>if(self!==top){try{top.location=self.location}catch(e){}document.documentElement.style.display="none";}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="MAF Pacer" />
+<meta name="theme-color" content="#0b1020" />
+<title>MAF Pacer</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#141a2e; --panel2:#1b2440; --ink:#eaf0ff; --muted:#8d97b8;
+    --walk:#2f6df6; --jog:#22c55e; --hold:#f59e0b; --over:#ef4444; --line:#27304f;
+    --accent:#5b8cff; --good:#22c55e; --amber:#f59e0b;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    -webkit-user-select:none; user-select:none;
+  }
+  .app{max-width:560px; margin:0 auto; min-height:100dvh; display:flex; flex-direction:column;}
+  .screen{display:none; flex:1; flex-direction:column; padding:16px;}
+  .screen.active{display:flex;}
+  h1{font-size:22px; margin:4px 0 2px;}
+  h2{font-size:16px; color:var(--muted); font-weight:600; margin:18px 0 8px; letter-spacing:.02em; text-transform:uppercase;}
+  .sub{color:var(--muted); font-size:13px;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:12px;}
+  .pill{display:inline-block; background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:6px 12px; font-size:13px; color:var(--ink);}
+  button{
+    font-family:inherit; font-size:16px; font-weight:700; color:var(--ink);
+    background:var(--panel2); border:1px solid var(--line); border-radius:14px;
+    padding:14px 16px; cursor:pointer; transition:transform .05s ease, filter .15s ease;
+  }
+  button:active{transform:scale(.98);}
+  .btn-primary{background:linear-gradient(180deg,#5b8cff,#3b6cf0); border-color:#3b6cf0;}
+  .btn-ghost{background:transparent;}
+  .btn-good{background:linear-gradient(180deg,#22c55e,#16a34a); border-color:#16a34a;}
+  .btn-danger{background:#3a1620; border-color:#5b2330; color:#ffd7dd;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .wk{display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; text-align:left;}
+  .wk small{color:var(--muted); font-weight:600;}
+  label{font-size:13px; color:var(--muted); display:block; margin-bottom:6px;}
+  input[type=number],input[type=text]{
+    width:100%; font-size:18px; padding:12px; border-radius:12px; background:var(--panel2);
+    color:var(--ink); border:1px solid var(--line); font-family:inherit;
+  }
+  textarea{width:100%; min-height:80px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:12px; padding:12px; font-family:inherit; font-size:14px;}
+  .toggle{display:flex; gap:8px;}
+  .toggle button{flex:1; padding:10px;}
+  .toggle button.sel{background:var(--accent); border-color:var(--accent);}
+  .banner{background:#2a1d05; border:1px solid #5a4112; color:#ffe9bd; border-radius:12px; padding:10px 12px; font-size:13px; margin-bottom:12px; line-height:1.45;}
+  .banner b{color:#ffd479;}
+
+  .hrchip{display:flex; align-items:center; gap:10px; background:var(--panel2); border:1px solid var(--line); border-radius:14px; padding:10px 14px;}
+  .hrchip .dot{width:10px; height:10px; border-radius:50%; background:#555;}
+  .hrchip.live .dot{background:var(--good); box-shadow:0 0 8px var(--good); animation:pulse 1s infinite;}
+  .hrchip .bpm{font-size:26px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .hrchip .bpm.over{color:var(--over);}
+  .hrchip .bpm.near{color:var(--amber);}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+  /* Player */
+  #player{padding:0;}
+  .pl-top{padding:12px 14px 4px; position:relative;}
+  .progwrap{height:8px; background:var(--panel2); border-radius:999px; overflow:hidden; margin-top:8px;}
+  .progbar{height:100%; width:0%; background:var(--accent); transition:width .3s linear;}
+  .stagecard{flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; margin:6px 14px; border-radius:24px; transition:background .25s ease; padding:12px 6px;}
+  .stagecard.walk{background:radial-gradient(120% 120% at 50% 0%, #1c356e 0%, #0e1830 70%);}
+  .stagecard.jog{background:radial-gradient(120% 120% at 50% 0%, #14502c 0%, #0c1a14 70%);}
+  .stagecard.hold{background:radial-gradient(120% 120% at 50% 0%, #5a4112 0%, #1a1407 70%);}
+  .stagecard.flash{animation:flash .6s ease;}
+  @keyframes flash{0%{filter:brightness(2.4);}100%{filter:brightness(1);}}
+  .stagename{font-size:18px; font-weight:800;}
+  .timer{font-size:58px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; margin:2px 0;}
+  .cue{color:#dfe6ff; font-size:14px; max-width:330px; min-height:34px;}
+  .metrics{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; width:100%; padding:0 4px; margin-top:10px; align-items:start;}
+  .metric{background:rgba(0,0,0,.28); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:8px 6px;}
+  .metric .v{font-size:28px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.1;}
+  .metric .v.dev{color:var(--amber);}
+  .metric .v.bpm{color:#9fb4ff;}
+  .metric .v.bpm.over{color:var(--over);}
+  .metric .v.bpm.under{color:var(--good);}
+  .metric .v.bpm.near{color:var(--amber);}
+  .metric .v.bpm.near,.metric .v.bpm.over{animation:hrpulse 1s infinite;}
+  @keyframes hrpulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+  .metric .k{font-size:10px; color:#c7d0f0; text-transform:uppercase; letter-spacing:.04em; margin-top:2px; min-height:13px;}
+  .metric .step{display:flex; gap:6px; margin-top:8px;}
+  .metric .step button{flex:1; padding:8px 0; font-size:22px; font-weight:800; border-radius:10px; line-height:1; background:#243056; border-color:#2f3d6b;}
+  .next{color:#c7d0f0; font-size:12px; margin-top:8px; opacity:.9;}
+  .controls{display:grid; grid-template-columns:1fr 2fr 1fr; gap:10px; padding:10px 14px 4px;}
+  .controls button{padding:16px 10px;}
+  .stepbadge{font-size:12px; color:var(--muted);}
+  svg{width:100%; height:160px; display:block;}
+  .empty{color:var(--muted); font-size:14px; padding:8px 0;}
+  .navbtns{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:auto; padding-top:10px;}
+  .toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#0f1730; border:1px solid var(--line); color:var(--ink); padding:10px 16px; border-radius:12px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:50;}
+  .toast.show{opacity:1;}
+  .histitem{display:flex; justify-content:space-between; gap:8px; padding:10px 0; border-bottom:1px solid var(--line); font-size:14px;}
+  .histitem small{color:var(--muted);}
+  .np{position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:flex-end; z-index:60;}
+  .np-card{background:var(--panel); border:1px solid var(--line); border-radius:20px 20px 0 0; padding:16px; width:100%; max-width:560px; margin:0 auto; max-height:85vh; overflow:auto;}
+  .np input[type=range]{width:100%; accent-color:var(--accent); height:30px; margin:6px 0;}
+
+  /* ===== v2 redesign: tab bar + dashboard + player hierarchy + charts ===== */
+  :root{ --tab:62px; }
+  .screen{ padding-bottom:calc(var(--tab) + 26px + env(safe-area-inset-bottom)); }
+  .screen.full{ padding-bottom:calc(18px + env(safe-area-inset-bottom)); }
+  svg{ height:auto; }
+  .tabbar{ position:fixed; left:0; right:0; bottom:0; z-index:40; display:flex; max-width:560px; margin:0 auto;
+    height:calc(var(--tab) + env(safe-area-inset-bottom)); padding-bottom:env(safe-area-inset-bottom);
+    background:rgba(14,20,38,.94); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border-top:1px solid var(--line); }
+  .tabbar.hide{ display:none; }
+  .tabbar button{ flex:1; background:none; border:none; border-radius:0; padding:7px 0; color:var(--muted); font-size:11px; font-weight:600;
+    display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .tabbar button .ico{ font-size:19px; line-height:1; }
+  .tabbar button.active{ color:var(--accent); }
+  .hero{ background:linear-gradient(160deg,#16213f,#121829); border:1px solid var(--accent); border-radius:18px; padding:16px; margin-bottom:12px; }
+  .statgrid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .stat{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:14px; }
+  .stat .big{ font-size:30px; font-weight:800; line-height:1; }
+  .stat .lbl{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-top:4px; }
+  .bpm.over{ color:var(--over); } .bpm.near{ color:var(--amber); } .bpm.under{ color:var(--good); }
+  /* player redesign */
+  .pl-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .iconbtn{ flex:0; padding:6px 12px; font-size:13px; }
+  .pl-stage{ flex:1; text-align:center; font-size:13px; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pl-time{ flex:0; min-width:58px; text-align:right; font-size:19px; font-weight:800; font-variant-numeric:tabular-nums; color:var(--muted); }
+  .recind{ font-size:11px; color:var(--muted); margin-top:6px; min-height:14px; }
+  .hrhero{ margin:4px 0 0; }
+  .hrbig{ font-size:84px; font-weight:800; font-variant-numeric:tabular-nums; line-height:.92; color:#9fb4ff; }
+  .hrbig.over,.hrbig.near{ animation:hrpulse 1s infinite; }
+  .hrcap{ font-size:13px; color:#c7d0f0; margin-top:2px; }
+  .adjrow{ display:flex; gap:10px; width:100%; padding:0 2px; margin-top:8px; }
+  .adjtile{ flex:1; background:rgba(0,0,0,.28); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:10px 6px; }
+  .adjval{ font-size:30px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .adjval.dev{ color:var(--amber); }
+  .adjlbl{ font-size:10px; color:#c7d0f0; text-transform:uppercase; letter-spacing:.05em; margin-top:2px; min-height:12px; }
+  .adjtile .step{ display:flex; gap:6px; margin-top:8px; }
+  .adjtile .step button{ flex:1; padding:9px 0; font-size:22px; font-weight:800; border-radius:10px; line-height:1; background:#243056; border-color:#2f3d6b; }
+  /* charts + detail */
+  .chart-wrap{ overflow:hidden; }
+  .zonebar{ display:flex; height:18px; border-radius:9px; overflow:hidden; margin:6px 0 8px; }
+  .zonelegend{ display:flex; flex-wrap:wrap; gap:10px 14px; font-size:11px; color:var(--muted); }
+  .kv{ display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .kv .k{ color:var(--muted); }
+  .hmain{ flex:1; cursor:pointer; overflow:hidden; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ HOME (dashboard) ============ -->
+  <section id="home" class="screen active">
+    <h1>MAF&nbsp;Pacer</h1>
+    <div id="envBanner" class="banner" style="display:none;"></div>
+    <div class="hero">
+      <div class="sub" style="margin-bottom:2px;">Today's workout</div>
+      <div style="font-size:18px; font-weight:800;" id="homeTodayTitle">—</div>
+      <div class="sub" id="homeTodayTag" style="margin:2px 0 12px;">—</div>
+      <button class="btn-primary" id="homeStartBtn" style="width:100%;">▶ Start workout</button>
+    </div>
+    <div class="statgrid">
+      <div class="stat"><div class="big"><span id="ceilBig">140</span></div><div class="lbl">MAF cap · <b id="zoneTxt">130–140</b><span id="sweetTxt" style="display:none"></span></div></div>
+      <div class="stat"><div class="big"><span id="homeWeek">0</span>/3</div><div class="lbl">runs this week</div></div>
+    </div>
+    <h2>Live heart rate <span class="sub" style="text-transform:none;">(needs Bluefy)</span></h2>
+    <div class="card">
+      <div class="hrchip" id="homeHrChip"><span class="dot"></span><span class="bpm" id="homeBpm">––</span><span class="sub" id="homeHrLabel">Not connected</span></div>
+      <button class="btn-good" id="homeConnect" style="width:100%; margin-top:10px;" onclick="connectHR()">Connect Polar H10</button>
+    </div>
+    <h2>Last run</h2>
+    <div class="card"><div class="sub" id="homeLast">No runs yet.</div></div>
+  </section>
+
+  <!-- ============ RUN (workout picker) ============ -->
+  <section id="run" class="screen">
+    <h1>Run</h1>
+    <h2>Today's workout</h2>
+    <div id="todayWorkout"></div>
+    <h2>More workouts</h2>
+    <div id="workoutList"></div>
+  </section>
+
+  <!-- ============ PLAYER ============ -->
+  <section id="player" class="screen">
+    <div class="pl-top">
+      <div class="pl-row">
+        <button class="btn-ghost iconbtn" id="btnExit" onclick="exitWorkout()">← Home</button>
+        <div class="pl-stage"><span id="plTitle">Workout</span> · <span id="plStep">1/1</span></div>
+        <div class="pl-time" id="timer">00:00</div>
+      </div>
+      <div class="progwrap"><div class="progbar" id="progbar"></div></div>
+      <div class="recind" id="recInd"></div>
+    </div>
+
+    <div class="stagecard walk" id="stageCard">
+      <div class="stagename" id="stageName">—</div>
+      <div class="hrhero"><div class="hrbig bpm" id="mBpm">––</div><div class="hrcap">bpm · keep ≤ <span id="mCeil">140</span></div></div>
+      <div class="cue" id="cue">—</div>
+      <div class="adjrow">
+        <div class="adjtile">
+          <div class="adjval" id="mSpeed">4.2</div>
+          <div class="adjlbl" id="mSpeedLbl">Speed</div>
+          <div class="step"><button onclick="adjust('speed',-1)">–</button><button onclick="adjust('speed',1)">+</button></div>
+        </div>
+        <div class="adjtile">
+          <div class="adjval" id="mIncline">1%</div>
+          <div class="adjlbl" id="mInclineLbl">Incline</div>
+          <div class="step"><button onclick="adjust('incline',-1)">–</button><button onclick="adjust('incline',1)">+</button></div>
+        </div>
+      </div>
+      <div class="next" id="nextLine">Up next: —</div>
+    </div>
+
+    <div class="controls">
+      <button class="btn-ghost" id="btnPrev" onclick="prevStage()">◂</button>
+      <button class="btn-primary" id="btnPlay" onclick="togglePlay()">Start</button>
+      <button class="btn-ghost" id="btnNext" onclick="skipStage()">▸</button>
+    </div>
+    <div id="musicBar" style="display:none; align-items:center; gap:10px; padding:2px 14px 6px;">
+      <button class="btn-ghost" onclick="prevTrack()" style="flex:0; padding:10px 12px; font-size:18px;">⏮</button>
+      <button class="btn-ghost" id="playBtnPl" onclick="toggleMusic()" style="flex:0; padding:10px 16px; font-size:18px;">▶</button>
+      <button class="btn-ghost" onclick="nextTrack()" style="flex:0; padding:10px 12px; font-size:18px;">⏭</button>
+      <button class="btn-ghost" onclick="openNP()" style="flex:1; text-align:left; padding:10px 12px; overflow:hidden;"><span class="sub" id="trackNowPl" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;">♪ Tap for player</span></button>
+    </div>
+    <div style="padding:6px 14px calc(12px + env(safe-area-inset-bottom));"><button class="btn-danger" style="width:100%;" onclick="endWorkout(true)">Finish & log</button></div>
+  </section>
+
+  <!-- ============ SUMMARY ============ -->
+  <section id="summary" class="screen">
+    <h1>Nice work 💪</h1>
+    <div class="sub" id="sumLine">—</div>
+    <div class="card" style="margin-top:14px;">
+      <h2 style="margin-top:0;">Saved automatically ✓</h2>
+      <div class="sub" style="margin:-4px 0 6px;">Your run is already in your history. Add details below if you like (optional), then tap Done.</div>
+      <div class="sub" id="autoNote" style="margin:0 0 10px; display:none;"></div>
+      <div class="grid2">
+        <div><label>Avg HR</label><input type="number" id="inAvg" inputmode="numeric" placeholder="e.g. 134"></div>
+        <div><label>Max HR</label><input type="number" id="inMax" inputmode="numeric" placeholder="e.g. 145"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px;">
+        <div><label>MAF speed held (<span class="uLbl">mph</span>)</label><input type="number" id="inMaf" inputmode="decimal" step="0.1" placeholder="e.g. 4.2"></div>
+        <div><label>Effort (RPE 1–10)</label><input type="number" id="inRpe" inputmode="numeric" min="1" max="10" placeholder="e.g. 4"></div>
+      </div>
+      <div style="margin-top:10px;"><label>Notes</label><textarea id="inNotes" placeholder="Felt easy. Slowed on the long hold when HR hit 143."></textarea></div>
+      <button class="btn-primary" style="width:100%; margin-top:12px;" onclick="saveSession()">Done</button>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0;">Send to Claude</h2>
+      <div class="sub" style="margin-bottom:10px;">Copies your full session — per-stage HR, every speed/incline adjustment, and BPM stats — for planning your next workout.</div>
+      <button style="width:100%;" onclick="copyLog()">📋 Copy session log</button>
+    </div>
+    <div class="grid2"><button class="btn-ghost" onclick="commitDetails(); if(currentSavedId){openSession(currentSavedId);}else{show('home');}">View details</button><button class="btn-ghost" onclick="commitDetails(); show('home')">Home</button></div>
+  </section>
+
+  <!-- ============ SESSIONS ============ -->
+  <section id="sessions" class="screen">
+    <h1>Sessions</h1>
+    <h2>MAF test — speed at HR ceiling</h2>
+    <div class="card chart-wrap"><div id="chart"></div></div>
+    <h2>History <span class="sub" style="text-transform:none;">(tap a run for details)</span></h2>
+    <div id="histList"></div>
+  </section>
+
+  <!-- ============ DETAIL (per-session deep-dive) ============ -->
+  <section id="detail" class="screen full">
+    <div class="pl-row" style="padding:2px 0 8px;">
+      <button class="btn-ghost iconbtn" onclick="show('sessions')">← Back</button>
+      <div class="pl-stage" id="detailTitle">Session</div>
+      <div style="flex:0; width:58px;"></div>
+    </div>
+    <div class="sub" id="detailDate" style="margin-bottom:8px;">—</div>
+    <h2>Heart rate &amp; speed</h2>
+    <div class="card chart-wrap"><div id="detailTrace"></div></div>
+    <h2>Time in zone</h2>
+    <div class="card"><div id="detailZone"></div></div>
+    <h2>Overall</h2>
+    <div class="card"><div id="detailStats"></div></div>
+    <h2>Per stage</h2>
+    <div class="card"><div id="detailStages"></div></div>
+    <div class="grid2" style="margin-bottom:24px;">
+      <button class="btn-ghost" onclick="if(detailRec)copy(fmtLog(detailRec))">📋 Copy log</button>
+      <button class="btn-danger" onclick="deleteDetail()">✕ Delete</button>
+    </div>
+  </section>
+
+  <!-- ============ MORE ============ -->
+  <section id="more" class="screen">
+    <h1>More</h1>
+    <h2>Music <span class="sub" style="text-transform:none;">(your Suno MP3s, on-device)</span></h2>
+    <div class="card">
+      <div id="trackNow" class="sub" style="margin-bottom:8px;">No music loaded</div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button class="btn-ghost" onclick="prevTrack()" style="flex:0; padding:10px 14px;">⏮</button>
+        <button class="btn-good" id="playBtn" onclick="toggleMusic()" style="flex:1;">▶ Play</button>
+        <button class="btn-ghost" onclick="nextTrack()" style="flex:0; padding:10px 14px;">⏭</button>
+      </div>
+      <label for="musicFiles" style="display:block;text-align:center;margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:14px;cursor:pointer;font-weight:700;font-size:15px;">＋ Add MP3s (from Files / iCloud)</label>
+      <input id="musicFiles" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" multiple style="display:none;" onchange="addTracks(this.files)">
+      <div id="musicErr" class="sub" style="color:var(--over); margin-top:8px;"></div>
+      <div class="sub" style="margin-top:10px;">Tap 🌅 / 🔥 / 🌙 on a track to set its pool (Warm-up / Intense / Cool-down).</div>
+      <div id="trackList" style="margin-top:8px;"></div>
+    </div>
+    <h2>Data</h2>
+    <div class="card">
+      <button style="width:100%; margin-bottom:8px;" onclick="exportFile()">⤓ Export all data (file)</button>
+      <label for="importFile" style="display:block;text-align:center;padding:13px;border:1px solid var(--line);border-radius:14px;cursor:pointer;font-weight:700;">⤒ Import data file</label>
+      <input id="importFile" type="file" accept="application/json,.json" style="display:none;" onchange="importFile(this.files)">
+      <button class="btn-ghost" style="width:100%; margin-top:8px;" onclick="exportAll()">📋 Copy all data</button>
+    </div>
+    <div class="grid2">
+      <button class="btn-ghost" onclick="show('settings')">⚙︎ Settings</button>
+      <button class="btn-ghost" onclick="show('about')">ℹ︎ How to use</button>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section id="settings" class="screen">
+    <h1>Settings</h1>
+    <div class="card">
+      <label>MAF heart-rate ceiling (bpm)</label>
+      <input type="number" id="setCeil" inputmode="numeric">
+      <div class="sub" style="margin-top:6px;">Your ceiling = 180 − age − adjustment. Update it here if it changes (e.g., on a birthday).</div>
+    </div>
+    <div class="card">
+      <label>Warn when within … bpm of the cap</label>
+      <input type="number" id="setWarn" inputmode="numeric">
+      <div class="sub" style="margin-top:6px;">Number turns amber + soft double-beep as you approach the ceiling, so you can ease off before going over. Default 3.</div>
+    </div>
+    <div class="card">
+      <label>Treadmill speed units</label>
+      <div class="toggle"><button id="unitMph" onclick="setUnits('mph')">mph</button><button id="unitKmh" onclick="setUnits('kmh')">km/h</button></div>
+    </div>
+    <div class="card">
+      <label>Audio cues</label>
+      <div class="toggle"><button id="sndOn" onclick="setSound(true)">On</button><button id="sndOff" onclick="setSound(false)">Off</button></div>
+      <div class="sub" style="margin-top:6px;">Beeps count down the last 3 sec of each stage, chime on changes, and alert when HR goes over the ceiling.</div>
+    </div>
+    <div class="card">
+      <label>Your data</label>
+      <div class="sub" style="margin-bottom:10px;">Everything is stored only in this browser, on this device — nothing is ever uploaded. Anyone who can unlock your phone can open it. Wipe it anytime:</div>
+      <button class="btn-danger" style="width:100%;" onclick="clearData()">Clear all saved data</button>
+    </div>
+    <div class="navbtns"><button class="btn-ghost" onclick="show('about')">How to use</button><button class="btn-primary" onclick="applySettings(); show('home');">Save</button></div>
+  </section>
+
+  <!-- ============ ABOUT ============ -->
+  <section id="about" class="screen">
+    <h1>How to use</h1>
+    <div class="card">
+      <h2 style="margin-top:0;">A run</h2>
+      <ol style="padding-left:18px; line-height:1.6; font-size:14.5px;">
+        <li>Open in <b>Bluefy</b> (for live HR), wear the Polar H10, quit Polar Beat, tap <b>Connect Polar H10</b>.</li>
+        <li>Pick a workout → <b>Start</b>. Match the treadmill to the big <b>Speed</b> and <b>Incline</b> numbers; keep HR under the ceiling.</li>
+        <li><b>Deviate when you need to.</b> If HR drifts over 140, slow the treadmill and tap the <b>– Speed</b> button to match. Any change (speed or incline) turns amber and is <b>logged with the exact time and your BPM</b>.</li>
+        <li>On hold/test stages, use the steppers to dial in and <b>record the speed you actually held</b>.</li>
+        <li>Finish → Avg/Max HR auto-fill → <b>Copy session log</b> and paste it to me. It includes per-stage HR, every adjustment, and BPM stats.</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0;">Important</h2>
+      <ul style="padding-left:18px; line-height:1.6; font-size:14px;">
+        <li><b>Auto-Lock = Never</b> (iPhone Settings → Display) and keep this page in front — backgrounding stops the timers and can drop the HR stream.</li>
+        <li>The mph/incline numbers are <b>starting points</b>. HR is the boss: stay under 140 and let pace fall if it climbs.</li>
+        <li>The HR number turns <b style="color:#f59e0b">amber + soft double-beep</b> as you near the cap, then <b style="color:#ef4444">red + alarm</b> if you go over — ease off when you hear it.</li>
+        <li>No Bluefy? Cues, timers, adjustments and logging still work in Safari — just type your Avg/Max HR from Polar Beat at the end.</li>
+        <li><b>Music:</b> add your Suno MP3s in the Music section (Home) — stored on your device, never uploaded. They play during runs and <b>duck automatically</b> when the over-cap alarm sounds, so you always hear it.</li>
+      </ul>
+    </div>
+    <button class="btn-ghost" onclick="show('home')">← Back</button>
+  </section>
+
+</div>
+<nav class="tabbar" id="tabbar">
+  <button data-tab="home" onclick="show('home')"><span class="ico">🏠</span>Home</button>
+  <button data-tab="run" onclick="show('run')"><span class="ico">▶</span>Run</button>
+  <button data-tab="sessions" onclick="show('sessions')"><span class="ico">📊</span>Sessions</button>
+  <button data-tab="more" onclick="show('more')"><span class="ico">⋯</span>More</button>
+</nav>
+<audio id="audioEl" preload="metadata"></audio>
+<div class="np" id="nowPlaying" onclick="if(event.target===this)closeNP()">
+  <div class="np-card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div class="sub">Now playing</div>
+      <button class="btn-ghost" onclick="closeNP()" style="flex:0; padding:6px 14px;">✕ Close</button>
+    </div>
+    <div id="npTitle" style="font-size:20px; font-weight:800; margin:10px 0 4px;">—</div>
+    <div id="npPool" class="sub" style="margin-bottom:6px;"></div>
+    <input id="npSeek" type="range" min="0" max="1000" value="0" oninput="seekMusic(this.value)">
+    <div style="display:flex; justify-content:space-between;"><span class="sub" id="npCur">0:00</span><span class="sub" id="npDur">0:00</span></div>
+    <div style="display:flex; gap:10px; margin-top:12px;">
+      <button class="btn-ghost" onclick="prevTrack()" style="flex:1; font-size:24px; padding:14px 0;">⏮</button>
+      <button class="btn-good" id="npPlay" onclick="toggleMusic()" style="flex:2; font-size:17px;">▶ Play</button>
+      <button class="btn-ghost" onclick="nextTrack()" style="flex:1; font-size:24px; padding:14px 0;">⏭</button>
+    </div>
+    <div class="sub" style="margin-top:16px;">Tracks — tap to play:</div>
+    <div id="npList" style="margin-top:6px;"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   MAF PACER — guided treadmill player + live HR + deviation log
+   Claude edits the WORKOUTS below each cycle from your data.
+   ============================================================ */
+
+const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3 };
+
+/* ---- WORKOUTS (Claude updates this list) ----
+   stage = { name, type:'walk'|'jog'|'hold', speed:Number|null, incline:Number, sec:Number, cue:String }
+   speed:null => a "hold" stage: dial in your own speed with the steppers */
+const WORKOUTS = [
+  {
+    id:"today", title:"Steady Base — 42 min", tag:"Tomorrow's plan (Jun 16) · settle into HR 132–138", isTest:false,
+    stages:[
+      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk. Let your heart rate settle into the low 100s."},
+      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.8, incline:1, sec:240, cue:"Easy shuffle to wake the legs up."},
+      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.2, incline:1, sec:1680, cue:"Hold HR 132–138. If you're under 132 and it feels easy, nudge up to 4.3. Over 140 → drop the speed."},
+      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish. Nice work."}
+    ]
+  },
+  {
+    id:"long60", title:"2 · Long Steady — 60 min", tag:"Once a week · let pace ease as HR drifts", isTest:false,
+    stages:[
+      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk."},
+      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.8, incline:1, sec:300, cue:"Easy shuffle."},
+      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.1, incline:1, sec:2700, cue:"Hold HR 130–138. As HR drifts up over the hour, DROP the speed — chase the heart rate, not the pace."},
+      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish. Great work."}
+    ]
+  },
+  {
+    id:"steady45", title:"3 · Steady + Sweet Spot — 45 min", tag:"MAF run with a top-of-zone finish", isTest:false,
+    stages:[
+      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk."},
+      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.8, incline:1, sec:300, cue:"Easy shuffle."},
+      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.2, incline:1, sec:1200, cue:"Hold HR 130–140."},
+      {name:"Sweet spot",    type:"jog",  mood:"intense",  speed:4.3, incline:1, sec:600, cue:"Nudge to 4.3 — aim for 137–140, the top of the zone. Stay UNDER 140."},
+      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
+    ]
+  },
+  {
+    id:"maftest", title:"4 · Monthly MAF Test", tag:"Once a month — log the speed that holds HR at 140", isTest:true,
+    stages:[
+      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk."},
+      {name:"Build",         type:"jog",  mood:"warmup",   speed:3.9, incline:1, sec:300, cue:"Ease up toward MAF."},
+      {name:"Settle at MAF", type:"hold", mood:"intense",  speed:null, incline:1, sec:300, cue:"Use the steppers — set the speed so HR sits exactly at 140."},
+      {name:"TEST hold",     type:"hold", mood:"intense",  speed:null, incline:1, sec:900, cue:"Hold HR at 140 for 15 min. The speed you settle on is your score (it's logged)."},
+      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
+    ]
+  }
+];
+
+/* Which workout is featured under "Today's workout" (Claude sets this each cycle). */
+const TODAY_ID = "today";
+
+/* ===================== STATE ===================== */
+const $ = id => document.getElementById(id);
+let cur=null, idx=0, endAt=0, remain=0, running=false, tick=null, audio=null, wakeLock=null;
+let recentSpeed=4.0, SESS=null, workoutMusicCued=false;
+const HR = { device:null, char:null, bpm:null, connected:false, zone:null, lastOverBeep:0, lastSampleTs:0, staleWarned:false };
+
+/* ===================== INIT ===================== */
+function load(){
+  try{ Object.assign(PROFILE, JSON.parse(localStorage.getItem("maf_profile")||"{}")); }catch(e){}
+  applyProfileUI(); renderWorkouts(); checkEnv(); initMusic();   // renderHistory runs after IndexedDB loads (initMusic)
+}
+function saveProfile(){ localStorage.setItem("maf_profile", JSON.stringify(PROFILE)); }
+function applyProfileUI(){
+  $("ceilBig").textContent=PROFILE.ceiling;
+  $("zoneTxt").textContent=(PROFILE.ceiling-10)+"–"+PROFILE.ceiling;
+  $("sweetTxt").textContent=(PROFILE.ceiling-5)+"–"+PROFILE.ceiling;
+  $("mCeil").textContent=PROFILE.ceiling;
+  $("setCeil").value=PROFILE.ceiling;
+  $("setWarn").value=PROFILE.warnMargin;
+  document.querySelectorAll(".uLbl").forEach(e=>e.textContent=PROFILE.units);
+  $("unitMph").classList.toggle("sel",PROFILE.units==="mph");
+  $("unitKmh").classList.toggle("sel",PROFILE.units==="kmh");
+  $("sndOn").classList.toggle("sel",PROFILE.sound);
+  $("sndOff").classList.toggle("sel",!PROFILE.sound);
+}
+function setUnits(u){ PROFILE.units=u; applyProfileUI(); }
+function setSound(b){ PROFILE.sound=b; applyProfileUI(); }
+function applySettings(){ const c=parseInt($("setCeil").value,10); if(c>80&&c<210) PROFILE.ceiling=c; const w=parseInt($("setWarn").value,10); if(w>=1&&w<=15) PROFILE.warnMargin=w; saveProfile(); applyProfileUI(); }
+function checkEnv(){
+  const b=$("envBanner"); const secure=location.protocol==="https:"||location.hostname==="localhost";
+  let msg="";
+  if(!("bluetooth" in navigator)) msg="Live HR needs the <b>Bluefy</b> browser. The cues, adjustments & logging still work without it — just enter Avg/Max HR from Polar Beat at the end.";
+  else if(!secure) msg="Open this page from its <b>https link</b> for live HR.";
+  if(msg){ b.innerHTML=msg; b.style.display="block"; } else b.style.display="none";
+}
+function show(s){
+  document.querySelectorAll(".screen").forEach(e=>e.classList.remove("active"));
+  var el=$(s); if(el) el.classList.add("active"); window.scrollTo(0,0);
+  var full=(["player","detail","summary","settings","about"].indexOf(s)>=0);
+  var tb=$("tabbar"); if(tb) tb.classList.toggle("hide", full);
+  document.querySelectorAll(".tabbar button").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-tab")===s); });
+  if(s==="home"){ cur=null; currentMood=null; renderHome(); }
+  if(s==="run") renderWorkouts();
+  if(s==="sessions") renderHistory();
+}
+
+/* ===================== TIME HELPERS ===================== */
+function elapsedSec(){
+  if(!cur) return 0;
+  let base=0; for(let i=0;i<idx;i++) base+=cur.stages[i].sec;
+  return base + (cur.stages[idx].sec - remain);
+}
+function fmt(t){ t=Math.max(0,Math.round(t)); const m=Math.floor(t/60),s=t%60; return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"); }
+function avgOf(a){ return a.reduce((x,y)=>x+y,0)/a.length; }
+
+/* ===================== WORKOUT LIST ===================== */
+function renderWorkouts(){
+  const today = WORKOUTS.find(w=>w.id===TODAY_ID) || WORKOUTS[0];
+  $("todayWorkout").innerHTML=""; renderCard(today, $("todayWorkout"), true);
+  const others=$("workoutList"); others.innerHTML="";
+  WORKOUTS.forEach(w=>{ if(w!==today) renderCard(w, others, false); });
+}
+function renderCard(w, wrap, featured){
+  const total=w.stages.reduce((a,s)=>a+s.sec,0);
+  const b=document.createElement("button");
+  b.className="card"; b.style.width="100%"; b.style.padding="14px 16px"; b.style.marginBottom="10px";
+  if(featured){ b.style.borderColor="var(--accent)"; b.style.background="#16203c"; }
+  b.innerHTML=`<div class="wk"><div><div style="font-size:16px;font-weight:800;">${w.title}</div><small>${w.tag}</small></div><div class="pill">${Math.round(total/60)} min</div></div>`;
+  b.onclick=()=>startWorkout(w);
+  wrap.appendChild(b);
+}
+
+/* ===================== SESSION OBJECT ===================== */
+function newSession(w){
+  return {
+    title:w.title, isTest:!!w.isTest,
+    plan:w.stages.map(s=>({name:s.name,type:s.type,speed:s.speed,incline:s.incline,sec:s.sec})),
+    actuals:w.stages.map(s=>({speed:s.speed, incline:s.incline})),
+    adjustments:[], hr:[], rr:[], endSec:0, stats:null
+  };
+}
+
+/* ===================== PLAYER ===================== */
+function startWorkout(w){
+  cur=w; idx=0; running=false; recentSpeed=4.0; HR.zone=null; HR.lastOverBeep=0; workoutMusicCued=false; currentSavedId=null;
+  SESS=newSession(w);
+  $("plTitle").textContent=w.title;
+  show("player"); loadStage(); $("btnPlay").textContent="Start";
+  cueFirstTrack();   // pre-load track 1 so it can auto-start (iOS-gesture safe) when they hit Start
+}
+function loadStage(){
+  const s=cur.stages[idx], a=SESS.actuals[idx];
+  $("plStep").textContent=`Stage ${idx+1} / ${cur.stages.length}`;
+  $("stageName").textContent=s.name;
+  $("cue").textContent=s.cue;
+  $("stageCard").className="stagecard "+s.type;
+  $("mCeil").textContent=activeCeiling();
+  if(s.speed!=null) recentSpeed = (a.speed!=null?a.speed:s.speed);
+  renderStageValues();
+  remain=s.sec; renderTimer();
+  const n=cur.stages[idx+1];
+  $("nextLine").textContent = n ? `Up next: ${n.name} · ${n.speed===null?"hold":n.speed.toFixed(1)+" "+PROFILE.units} · ${n.incline}%` : "Up next: finish 🏁";
+  updateProgress();
+  reactToMood();   // switch the music pool to match this stage's intensity
+  updateRec();
+}
+function renderStageValues(){
+  const s=cur.stages[idx], a=SESS.actuals[idx];
+  const sv=$("mSpeed"), sl=$("mSpeedLbl");
+  if(a.speed==null){ sv.textContent="HOLD"; sv.classList.remove("dev"); sl.textContent="set speed"; }
+  else {
+    sv.textContent=a.speed.toFixed(1);
+    const dev = s.speed!=null && Math.abs(a.speed-s.speed)>0.001;
+    sv.classList.toggle("dev",dev);
+    sl.textContent = dev ? ("plan "+s.speed.toFixed(1)) : ("Speed "+PROFILE.units);
+  }
+  const iv=$("mIncline"), il=$("mInclineLbl");
+  iv.textContent=a.incline+"%";
+  const idev = Math.abs(a.incline-s.incline)>0.001;
+  iv.classList.toggle("dev",idev);
+  il.textContent = idev ? ("plan "+s.incline+"%") : "Incline";
+}
+function adjust(varName, dir){
+  if(!SESS) return;
+  const a=SESS.actuals[idx], s=cur.stages[idx];
+  const step = varName==='speed'?0.1:0.5;
+  let base = a[varName];
+  if(varName==='speed' && base==null) base = recentSpeed;
+  let val = Math.round((base + dir*step)*10)/10;
+  if(val<0) val=0;
+  a[varName]=val;
+  if(varName==='speed') recentSpeed=val;
+  logDeviation(varName, s[varName], val);
+  renderStageValues();
+  beep(varName==='speed'?700:520, 55);
+}
+function logDeviation(varName, planned, actual){
+  const t=Math.round(elapsedSec()), bpm=HR.bpm;
+  const arr=SESS.adjustments, last=arr[arr.length-1];
+  if(last && last.stageIdx===idx && last.variable===varName && (t-last.atSec)<=12){
+    last.actual=actual; last.bpm=bpm; last.atSec=t; last.mmss=fmt(t);
+  } else {
+    arr.push({ atSec:t, mmss:fmt(t), stage:cur.stages[idx].name, stageIdx:idx, variable:varName, planned, actual, bpm });
+  }
+}
+function renderTimer(){ const m=Math.floor(remain/60), s=remain%60; $("timer").textContent=String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"); }
+function updateProgress(){
+  const done=cur.stages.slice(0,idx).reduce((a,s)=>a+s.sec,0)+(cur.stages[idx].sec-remain);
+  const total=cur.stages.reduce((a,s)=>a+s.sec,0);
+  $("progbar").style.width=(100*done/total)+"%";
+}
+function togglePlay(){ running?pause():play(); }
+function startTick(){
+  clearInterval(tick); endAt=Date.now()+remain*1000;
+  tick=setInterval(()=>{
+    remain=Math.max(0,Math.round((endAt-Date.now())/1000));
+    renderTimer(); updateProgress(); updateRec();
+    if(remain<=3&&remain>0) beep(880,90);
+    if(remain<=0) nextStageAuto();
+  },200);
+}
+function play(){
+  running=true; $("btnPlay").textContent="Pause"; unlockAudio(); requestWake(); startTick();
+  if(!workoutMusicCued){            // auto-start music ONCE, on the first Start; manual control thereafter
+    workoutMusicCued=true;
+    var a=$("audioEl");
+    if(playlist.length && a.paused){ if(a.src) a.play().catch(function(){}); else playTrack(0); }
+  }
+}
+function pause(){ running=false; $("btnPlay").textContent="Resume"; clearInterval(tick); releaseWake(); }
+function nextStageAuto(){
+  clearInterval(tick); chime(); flash();
+  if(idx<cur.stages.length-1){ idx++; loadStage(); startTick(); }
+  else endWorkout(false);
+}
+function skipStage(){ if(idx<cur.stages.length-1){ idx++; loadStage(); if(running) startTick(); } else endWorkout(true); }
+function prevStage(){ if(idx>0){ idx--; loadStage(); if(running) startTick(); } }
+function flash(){ const c=$("stageCard"); c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash"); }
+
+/* ===================== STATS ===================== */
+function computeStats(){
+  const cl=activeCeiling(), all=SESS.hr;
+  const per=SESS.plan.map((p,i)=>({ name:p.name, speed:p.speed, incline:p.incline, sec:p.sec, actual:SESS.actuals[i], samples:[], over:0, avg:null, max:null, min:null }));
+  let overTotal=0;
+  for(let k=0;k<all.length;k++){
+    const s=all[k]; if(per[s.idx]) per[s.idx].samples.push(s.bpm);
+    const dt = k>0?Math.min(5, all[k].t-all[k-1].t):0;
+    if(s.bpm>cl){ overTotal+=dt; if(per[s.idx]) per[s.idx].over+=dt; }
+  }
+  per.forEach(p=>{ if(p.samples.length){ p.avg=Math.round(avgOf(p.samples)); p.max=Math.max(...p.samples); p.min=Math.min(...p.samples);} });
+  const bpms=all.map(x=>x.bpm);
+  return { per, overTotal:Math.round(overTotal),
+    avg:bpms.length?Math.round(avgOf(bpms)):null, max:bpms.length?Math.max(...bpms):null, min:bpms.length?Math.min(...bpms):null };
+}
+function downsample(){
+  const out=[], seen=new Set();
+  SESS.hr.forEach(s=>{ const b=Math.floor(s.t/30); if(!seen.has(b)){ seen.add(b); out.push({t:s.t,bpm:s.bpm}); } });
+  return out;
+}
+function endWorkout(manual){
+  running=false; clearInterval(tick); releaseWake(); $("btnPlay").textContent="Start";
+  SESS.endSec=Math.round(elapsedSec());
+  SESS.stats=computeStats();
+  pendingTitle=cur?cur.title:"Workout"; pendingIsTest=cur?!!cur.isTest:false;
+  $("sumLine").textContent=`${pendingTitle} · ${fmt(SESS.endSec)} done`;
+  ["inAvg","inMax","inMaf","inRpe","inNotes"].forEach(i=>$(i).value="");
+  $("autoNote").style.display="none";
+  const st=SESS.stats;
+  if(st.avg!=null){
+    $("inAvg").value=st.avg; $("inMax").value=st.max;
+    $("autoNote").textContent=`Auto-logged from strap · avg ${st.avg}, max ${st.max}, min ${st.min}, ${(st.overTotal/60).toFixed(1)} min over ${activeCeiling()}.`;
+    $("autoNote").style.display="block";
+  }
+  // suggest MAF speed = final speed of the last hold/test stage (else the longest jog stage's actual)
+  let suggest=null;
+  for(let i=SESS.plan.length-1;i>=0;i--){ if(SESS.plan[i].speed===null && SESS.actuals[i].speed!=null){ suggest=SESS.actuals[i].speed; break; } }
+  if(suggest==null){
+    let best=-1; SESS.plan.forEach((p,i)=>{ if(p.type==="jog" && p.sec>best){ best=p.sec; suggest=SESS.actuals[i].speed; } });
+  }
+  if(suggest!=null) $("inMaf").value=suggest;
+  autoSaveSession();          // fool-proof: persist immediately so a run can never be lost
+  show("summary");
+}
+function exitWorkout(){
+  const inProgress = SESS && (running || (SESS.hr && SESS.hr.length>0) || elapsedSec()>3);
+  if(inProgress){
+    if(!confirm("End this run now? It will be saved to your history.")) return;
+    endWorkout(true); return;  // ends + auto-saves + shows summary (delete later from history if unwanted)
+  }
+  running=false; clearInterval(tick); releaseWake(); $("btnPlay").textContent="Start";
+  show("home");
+}
+
+/* ===================== LIVE HR (Web Bluetooth) ===================== */
+async function connectHR(){
+  if(!("bluetooth" in navigator)){ toast("Open in Bluefy for live HR"); checkEnv(); return; }
+  try{
+    const device=await navigator.bluetooth.requestDevice({ filters:[{services:["heart_rate"]}] });
+    HR.device=device; device.addEventListener("gattserverdisconnected", onHRDisconnect);
+    const server=await device.gatt.connect();
+    const service=await server.getPrimaryService("heart_rate");           // 0x180D
+    const char=await service.getCharacteristic("heart_rate_measurement"); // 0x2A37
+    HR.char=char; char.addEventListener("characteristicvaluechanged", onHRValue);
+    await char.startNotifications();
+    HR.connected=true; setHRUI(); toast("HR connected ✓");
+  }catch(e){ toast("HR connect failed — try again"); }
+}
+function onHRValue(e){
+  const v=e.target.value, flags=v.getUint8(0);
+  let i=1, bpm;
+  if(flags&0x01){ bpm=v.getUint16(i,true); i+=2; } else { bpm=v.getUint8(i); i+=1; }  // bit0: HR format
+  HR.bpm=bpm; HR.lastSampleTs=Date.now(); HR.staleWarned=false;
+  if(running && SESS){
+    SESS.hr.push({ t:Math.round(elapsedSec()), bpm, idx });
+    var ri=i; if(flags&0x08) ri+=2;                                   // skip Energy Expended if present (bit3)
+    if(flags&0x10){ for(; ri+1<v.byteLength; ri+=2){ SESS.rr.push([Math.round(elapsedSec()), Math.round(v.getUint16(ri,true)/1024*1000)]); } }  // RR intervals (bit4) → ms
+    const z=hrZone(bpm);
+    if(z!==HR.zone){
+      if(z==="near" && HR.zone!=="over") warnBeep();                    // approaching the cap
+      else if(z==="over"){ overAlarm(true); HR.lastOverBeep=Date.now(); } // over the cap — alarm + brief music duck
+      else if(HR.zone==="over") beep(700,120);                          // dropped back under
+      HR.zone=z;
+    }
+    if(z==="over" && Date.now()-HR.lastOverBeep>=15000){ overAlarm(false); HR.lastOverBeep=Date.now(); } // re-alarm (no music interrupt) if lingering over
+  }
+  setHRUI();
+}
+function activeCeiling(){ return (cur && cur.cap) ? cur.cap : PROFILE.ceiling; }
+function hrZone(bpm){
+  if(bpm==null) return null;
+  const c=activeCeiling(), m=PROFILE.warnMargin||3;
+  if(bpm>c) return "over";
+  if(bpm>=c-m) return "near";
+  return "under";
+}
+function warnBeep(){ beep(880,70); setTimeout(function(){beep(880,70);},110); }
+function setHRUI(){
+  const val=HR.bpm==null?"––":HR.bpm, z=hrZone(HR.bpm);
+  $("homeBpm").textContent=val;
+  $("homeHrChip").classList.toggle("live",HR.connected);
+  $("homeHrLabel").textContent=HR.connected?(HR.bpm!=null?"Live":"Connected"):"Not connected";
+  const hb=$("homeBpm"); hb.classList.remove("over","near"); if(z==="over") hb.classList.add("over"); else if(z==="near") hb.classList.add("near");
+  $("homeConnect").textContent=HR.connected?"Reconnect strap":"Connect Polar H10";
+  const m=$("mBpm"); m.textContent=val; m.classList.remove("over","under","near"); if(z) m.classList.add(z);
+  updateRec();
+}
+function updateRec(){
+  var el=$("recInd"); if(!el) return;
+  if(!cur){ el.textContent=""; return; }
+  var n=SESS?SESS.hr.length:0;
+  if(!HR.connected){ el.textContent="○ No strap — connect for HR recording"; el.style.color="var(--muted)"; return; }
+  if(!running){ el.textContent="● Strap live — recording begins at Start"; el.style.color="var(--good)"; return; }
+  var stale = HR.lastSampleTs && (Date.now()-HR.lastSampleTs>6000);
+  if(stale){
+    if(!HR.staleWarned){ HR.staleWarned=true; beep(330,220); }
+    el.textContent="⚠ HR signal lost — check the strap ("+n+" recorded)"; el.style.color="var(--over)";
+  } else {
+    el.textContent="● Recording · "+n+" readings"; el.style.color="var(--good)";
+  }
+}
+function onHRDisconnect(){ HR.connected=false; setHRUI(); toast("Strap disconnected — tap Reconnect"); }
+
+/* ===================== AUDIO / WAKE ===================== */
+function unlockAudio(){
+  if(!PROFILE.sound) return;
+  if(!audio){ try{ audio=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(audio&&audio.state==="suspended") audio.resume();
+}
+function beep(freq,ms){
+  if(!PROFILE.sound||!audio) return;
+  try{
+    const o=audio.createOscillator(), g=audio.createGain();
+    o.frequency.value=freq; o.type="sine"; o.connect(g); g.connect(audio.destination);
+    g.gain.setValueAtTime(0.001,audio.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.4,audio.currentTime+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001,audio.currentTime+ms/1000);
+    o.start(); o.stop(audio.currentTime+ms/1000+0.02);
+  }catch(e){}
+}
+function chime(){ beep(660,140); setTimeout(()=>beep(990,220),160); }
+async function requestWake(){ try{ if("wakeLock" in navigator) wakeLock=await navigator.wakeLock.request("screen"); }catch(e){} }
+function releaseWake(){ try{ if(wakeLock){ wakeLock.release(); wakeLock=null; } }catch(e){} }
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&running) requestWake(); });
+
+/* ===================== SESSIONS / HISTORY ===================== */
+let pendingTitle="Workout", pendingIsTest=false, currentSavedId=null;
+let SESSIONS=[];                                  // in-memory cache (newest first); persisted to IndexedDB
+function sessions(){ return SESSIONS; }
+function numOrNull(v){ const n=parseFloat(v); return isNaN(n)?null:n; }
+/* --- IndexedDB session store (durable; replaces the localStorage quota-thinning that lost trace data) --- */
+function dbSessions(mode){ return mdb.transaction("sessions",mode).objectStore("sessions"); }
+function putSessionDB(rec){ if(!mdb) return; try{ dbSessions("readwrite").put(rec); }catch(e){} }
+function delSessionDB(id){ if(!mdb) return; try{ dbSessions("readwrite").delete(id); }catch(e){} }
+function loadSessionsFromDB(){
+  return new Promise(function(res){
+    if(!mdb){ SESSIONS=[]; res([]); return; }
+    var out=[]; try{ var req=dbSessions("readonly").openCursor();
+      req.onsuccess=function(e){ var c=e.target.result; if(c){ out.push(c.value); c.continue(); } else { out.sort(function(a,b){return (a.date<b.date)?1:-1;}); SESSIONS=out; res(out); } };
+      req.onerror=function(){ SESSIONS=[]; res([]); };
+    }catch(e){ SESSIONS=[]; res([]); }
+  });
+}
+function migrateSessions(){               // one-time localStorage -> IndexedDB (idempotent; keeps old blob for rollback)
+  return new Promise(function(res){
+    if(!mdb || localStorage.getItem("maf_migrated_v2")){ res(); return; }
+    var old=[]; try{ old=JSON.parse(localStorage.getItem("maf_sessions")||"[]"); }catch(e){ old=[]; }
+    try{
+      var store=dbSessions("readwrite");
+      old.forEach(function(r){ if(!r.id) r.id="s"+(r.date||Math.round(performance.now())); if(!r.schema) r.schema=2; store.put(r); });
+      store.transaction.oncomplete=function(){ localStorage.setItem("maf_migrated_v2","1"); res(); };
+      store.transaction.onerror=function(){ res(); };
+    }catch(e){ res(); }
+  });
+}
+/* --- speed reconstruction: baseline from each stage's plan + every speed adjustment up to t (NOT actuals) --- */
+function speedAt(rec, t){
+  var cum=0, base=null, ps=rec.perStage||[];
+  for(var i=0;i<ps.length;i++){ var dur=(ps[i].plan&&ps[i].plan.sec)||0; if(t < cum+dur || i===ps.length-1){ base=ps[i].plan?ps[i].plan.speed:null; break; } cum+=dur; }
+  var sp=base, adj=rec.adjustments||[];
+  for(var j=0;j<adj.length;j++){ if(adj[j].variable==='speed' && adj[j].atSec<=t) sp=adj[j].actual; }
+  return sp;
+}
+/* --- derived stats computed once at save time (so trend screens read precomputed numbers) --- */
+function computeDerived(rec){
+  var cl=rec.ceiling, hr=rec.hr||[], z={under:0,aerobic:0,sweet:0,over:0};
+  for(var k=1;k<hr.length;k++){ var dt=hr[k][0]-hr[k-1][0]; if(dt<0)dt=0; if(dt>5)dt=5; var b=hr[k][1];
+    if(b>cl) z.over+=dt; else if(b>=cl-5) z.sweet+=dt; else if(b>=cl-10) z.aerobic+=dt; else z.under+=dt; }
+  Object.keys(z).forEach(function(k){ z[k]=Math.round(z[k]); });
+  var overPct = rec.durationSec? Math.round((rec.overSec||0)/rec.durationSec*1000)/10 : 0;
+  var mafTestSpeed=null;
+  if(rec.isTest && hr.length){ var sps=[]; for(var m=0;m<hr.length;m++){ if(Math.abs(hr[m][1]-cl)<=2){ var s=speedAt(rec,hr[m][0]); if(s!=null) sps.push(s); } } if(sps.length) mafTestSpeed=Math.round(sps.reduce(function(a,b){return a+b;},0)/sps.length*100)/100; }
+  return { zoneSec:z, overPct:overPct, mafTestSpeed:mafTestSpeed };
+}
+function autoSaveSession(){            // called at end of every run — saves immediately to IndexedDB
+  if(!SESS) return;
+  var st=SESS.stats;
+  if((SESS.endSec||0)<10 && (!st||st.avg==null) && (!SESS.adjustments||!SESS.adjustments.length)){ currentSavedId=null; return; } // nothing meaningful
+  var rec={
+    schema:2, id:"s"+Date.now(), date:new Date().toISOString(), title:pendingTitle, isTest:pendingIsTest,
+    ceiling:activeCeiling(), units:PROFILE.units, durationSec:SESS.endSec,
+    avg:st?st.avg:null, max:st?st.max:null, min:st?st.min:null, overSec:st?st.overTotal:null,
+    mafSpeed:numOrNull($("inMaf").value), rpe:numOrNull($("inRpe").value), notes:$("inNotes").value.trim(),
+    perStage: st? st.per.map(function(p){return {name:p.name, plan:{speed:p.speed,incline:p.incline,sec:p.sec}, actual:p.actual, avg:p.avg, max:p.max, min:p.min, over:Math.round(p.over)};}):[],
+    adjustments: SESS.adjustments||[],
+    hr: SESS.hr.map(function(s){return [s.t,s.bpm];}),         // full per-second trace (no thinning)
+    rr: (SESS.rr && SESS.rr.length)? SESS.rr : null,
+    recordedLive: !!(SESS.hr && SESS.hr.length)
+  };
+  rec.derived = computeDerived(rec);
+  SESSIONS.unshift(rec); putSessionDB(rec); currentSavedId=rec.id; renderHistory();
+}
+function commitDetails(){             // write optional notes/RPE/MAF-speed into the already-saved record
+  if(!currentSavedId) return;
+  for(var i=0;i<SESSIONS.length;i++){ if(SESSIONS[i].id===currentSavedId){ SESSIONS[i].mafSpeed=numOrNull($("inMaf").value); SESSIONS[i].rpe=numOrNull($("inRpe").value); SESSIONS[i].notes=$("inNotes").value.trim(); putSessionDB(SESSIONS[i]); renderHistory(); return; } }
+}
+function saveSession(){ commitDetails(); toast("Saved ✓"); show("home"); }   // summary "Done" button
+function deleteSession(i){
+  if(!confirm("Delete this saved session? This can't be undone.")) return;
+  var rec=SESSIONS[i]; SESSIONS.splice(i,1); if(rec) delSessionDB(rec.id); renderHistory(); toast("Session deleted");
+}
+function renderHistory(){
+  var arr=sessions(), list=$("histList"); list.innerHTML="";
+  if(!arr.length) list.innerHTML='<div class="empty">No sessions yet — finish a run and it saves here automatically.</div>';
+  arr.forEach(function(r,i){
+    var dt=new Date(r.date).toLocaleDateString(undefined,{month:"short",day:"numeric"});
+    var bits=[];
+    if(r.avg!=null) bits.push("avg "+r.avg);
+    if(r.max!=null) bits.push("max "+r.max);
+    if(r.overSec) bits.push((r.overSec/60).toFixed(1)+"m over");
+    if(r.mafSpeed!=null) bits.push("MAF "+r.mafSpeed+r.units);
+    if(r.adjustments&&r.adjustments.length) bits.push(r.adjustments.length+" adj");
+    var el=document.createElement("div"); el.className="histitem";
+    var info=document.createElement("div"); info.className="hmain"; info.innerHTML="<b>"+r.title.replace(/^\d+ · /,"")+"</b><br><small>"+dt+" · "+(bits.join(" · ")||"no HR logged")+"</small>"; info.onclick=function(){ openSession(r.id); };
+    var cp=document.createElement("button"); cp.className="btn-ghost"; cp.style.cssText="flex:0;padding:4px 10px;font-size:15px;"; cp.textContent="📋"; cp.title="Copy this session's log (to send to Claude)"; cp.onclick=function(){ copySavedLog(i); };
+    var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.title="Delete this session"; del.onclick=function(){ deleteSession(i); };
+    el.appendChild(info); el.appendChild(cp); el.appendChild(del); list.appendChild(el);
+  });
+  drawChart(arr.filter(function(r){return r.mafSpeed!=null;}).reverse());
+}
+function drawChart(data){
+  const w=480,h=160,pad=28;
+  if(data.length<2){ $("chart").innerHTML='<div class="empty">Log MAF speed on 2+ sessions to see your trend.</div>'; return; }
+  const ys=data.map(d=>d.mafSpeed), minY=Math.min(...ys)-0.3, maxY=Math.max(...ys)+0.3;
+  const X=i=>pad+(w-2*pad)*(i/(data.length-1));
+  const Y=v=>h-pad-(h-2*pad)*((v-minY)/(maxY-minY||1));
+  const pts=data.map((d,i)=>`${X(i)},${Y(d.mafSpeed)}`).join(" ");
+  const dots=data.map((d,i)=>`<circle cx="${X(i)}" cy="${Y(d.mafSpeed)}" r="4" fill="#5b8cff"/>`).join("");
+  const labels=data.map((d,i)=>`<text x="${X(i)}" y="${h-8}" fill="#8d97b8" font-size="10" text-anchor="middle">${new Date(d.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</text>`).join("");
+  $("chart").innerHTML=`<svg viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="#5b8cff" stroke-width="3" points="${pts}"/>${dots}${labels}<text x="${pad}" y="14" fill="#8d97b8" font-size="10">${maxY.toFixed(1)}</text><text x="${pad}" y="${h-pad}" fill="#8d97b8" font-size="10">${minY.toFixed(1)} ${data[0].units}</text></svg>`;
+}
+
+/* ===================== EXPORT / COPY ===================== */
+function fmtLog(r){
+  var u=r.units||"mph", L=[];
+  L.push("MAF Pacer — session");
+  L.push("Date: "+new Date(r.date).toLocaleString());
+  L.push("Workout: "+r.title);
+  L.push("MAF ceiling: "+r.ceiling+" bpm");
+  if(r.avg!=null) L.push("Overall HR: avg "+r.avg+", max "+r.max+", min "+r.min+" | "+((r.overSec||0)/60).toFixed(1)+" min over "+r.ceiling+" | duration "+fmt(r.durationSec||0));
+  else L.push("Overall HR: not recorded (strap not connected) · duration "+fmt(r.durationSec||0));
+  L.push("");
+  if(r.perStage && r.perStage.length){
+    L.push("PER STAGE  (plan -> actual | HR avg/max | min over ceiling):");
+    r.perStage.forEach(function(p){
+      var planStr=(p.plan.speed===null||p.plan.speed===undefined?"hold":Number(p.plan.speed).toFixed(1))+"/"+p.plan.incline+"%";
+      var dev=(p.actual.speed!==p.plan.speed)||(p.actual.incline!==p.plan.incline);
+      var actStr=dev?((p.actual.speed==null?"hold":Number(p.actual.speed).toFixed(1))+"/"+p.actual.incline+"%"):"as planned";
+      var hr=p.avg!=null?("HR "+p.avg+"/"+p.max):"no HR";
+      L.push("  "+p.name+": "+planStr+" -> "+actStr+" | "+hr+" | "+((p.over||0)/60).toFixed(1)+"m over");
+    });
+    L.push("");
+  }
+  if(r.adjustments && r.adjustments.length){
+    L.push("ADJUSTMENTS (time · stage · change · HR then):");
+    r.adjustments.forEach(function(a){
+      var un=a.variable==='speed'?(' '+u):'%';
+      var pl=a.planned===null?'hold':(a.planned+un);
+      L.push("  "+a.mmss+"  "+a.stage+"  "+a.variable+": "+pl+" -> "+a.actual+un+"  (HR "+(a.bpm==null?'?':a.bpm)+")");
+    });
+    L.push("");
+  } else { L.push("ADJUSTMENTS: none — ran as planned."); L.push(""); }
+  L.push("MAF speed held: "+(r.mafSpeed!=null?r.mafSpeed:"?")+" "+u);
+  L.push("RPE: "+(r.rpe!=null?r.rpe:"?")+"/10");
+  L.push("Notes: "+(r.notes||"-"));
+  return L.join("\n");
+}
+function copyLog(){                 // summary screen — copies the just-saved run
+  commitDetails();
+  var arr=sessions(), rec=null;
+  for(var i=0;i<arr.length;i++){ if(arr[i].id===currentSavedId){ rec=arr[i]; break; } }
+  if(rec) copy(fmtLog(rec)); else toast("Nothing to copy yet");
+}
+function copySavedLog(i){ var r=sessions()[i]; if(r) copy(fmtLog(r)); }
+function exportAll(){ copy(JSON.stringify({profile:PROFILE, sessions:sessions()}, null, 2)); }
+function clearData(){
+  if(confirm("Delete ALL saved sessions, settings, and music from this device? This can't be undone.")){
+    localStorage.removeItem("maf_sessions"); localStorage.removeItem("maf_profile"); localStorage.removeItem("maf_migrated_v2");
+    if(mdb){ try{ mtx("readwrite").clear(); }catch(e){} try{ dbSessions("readwrite").clear(); }catch(e){} }
+    SESSIONS=[]; stopMusic(); playlist=[]; renderMusic(); renderHistory(); toast("All data cleared");
+  }
+}
+function copy(txt){
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(()=>toast("Copied ✓")).catch(()=>fallbackCopy(txt));
+  else fallbackCopy(txt);
+}
+function fallbackCopy(txt){
+  const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select();
+  try{ document.execCommand("copy"); toast("Copied ✓"); }catch(e){ toast("Copy failed"); }
+  document.body.removeChild(ta);
+}
+let toastT=null;
+function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),1600); }
+
+/* ===================== MUSIC (your Suno MP3s, stored on-device in IndexedDB) ===================== */
+let mdb=null, playlist=[], curTrack=-1, curUrl=null, musicPlaying=false, duckT=null, currentMood=null;
+function openDB(){
+  return new Promise(function(res,rej){
+    try{
+      var r=indexedDB.open("mafMusic",2);
+      r.onupgradeneeded=function(e){ var db=e.target.result;
+        if(!db.objectStoreNames.contains("tracks")) db.createObjectStore("tracks",{keyPath:"id"});
+        if(!db.objectStoreNames.contains("sessions")){ var s=db.createObjectStore("sessions",{keyPath:"id"}); s.createIndex("date","date"); s.createIndex("isTest","isTest"); }
+      };
+      r.onsuccess=function(e){ mdb=e.target.result; res(mdb); };
+      r.onerror=function(){ rej(r.error); };
+    }catch(e){ rej(e); }
+  });
+}
+function mtx(mode){ return mdb.transaction("tracks",mode).objectStore("tracks"); }
+function loadPlaylist(){
+  return new Promise(function(res){
+    if(!mdb){ playlist=[]; res([]); return; }
+    var out=[], req=mtx("readonly").openCursor();
+    req.onsuccess=function(e){ var c=e.target.result; if(c){ out.push({id:c.value.id,name:c.value.name,cat:c.value.cat||"intense"}); c.continue(); } else { playlist=out; res(out); } };
+    req.onerror=function(){ playlist=[]; res([]); };
+  });
+}
+function idbPut(rec){ return new Promise(function(res,rej){ var r=mtx("readwrite").put(rec); r.onsuccess=function(){res();}; r.onerror=function(){rej(r.error);}; }); }
+async function addTracks(files){
+  var errEl=$("musicErr"); if(errEl) errEl.textContent="";
+  if(!files || !files.length){ toast("No files selected"); return; }
+  if(!mdb){ try{ await openDB(); }catch(e){ if(errEl) errEl.textContent="Storage error: "+(e&&e.message||e)+" — is Bluefy in Private mode, or storage full?"; toast("Storage unavailable"); return; } }
+  var n=0, errs=[];
+  for(var i=0;i<files.length;i++){ var f=files[i];
+    try{
+      if(!f.size){ errs.push(f.name+" — 0 bytes (download didn't finish, or it's an iCloud file that isn't downloaded)"); continue; }
+      var buf=await f.arrayBuffer();
+      if(!buf || !buf.byteLength){ errs.push(f.name+" — unreadable (empty data)"); continue; }
+      await idbPut({ id:f.name+"::"+f.size, name:f.name.replace(/\.[^.]+$/,""), type:f.type||"audio/mpeg", cat:"intense", buf:buf });
+      n++;
+    }catch(e){ errs.push(f.name+" — "+(e&&e.name?e.name+": ":"")+(e&&e.message||"could not be read")); }
+  }
+  await loadPlaylist(); renderMusic();
+  toast(n? (n+" track"+(n===1?"":"s")+" added"+(errs.length?(", "+errs.length+" failed"):"")) : "No tracks added");
+  if(errEl && errs.length) errEl.textContent="Couldn't add: "+errs.join("  |  ");
+}
+function getBlob(id){
+  return new Promise(function(res){ var r=mtx("readonly").get(id); r.onsuccess=function(e){ var v=e.target.result; res(v? new Blob([v.buf],{type:v.type||"audio/mpeg"}):null); }; r.onerror=function(){res(null);}; });
+}
+function idbGet(id){ return new Promise(function(res){ var r=mtx("readonly").get(id); r.onsuccess=function(e){res(e.target.result||null);}; r.onerror=function(){res(null);}; }); }
+async function cycleCat(id){
+  var order=["warmup","intense","cooldown"];
+  var rec=await idbGet(id); if(!rec) return;
+  rec.cat=order[(order.indexOf(rec.cat||"intense")+1)%order.length];
+  try{ await idbPut(rec); }catch(e){}
+  await loadPlaylist(); renderMusic();
+}
+async function removeTrack(id){
+  if(playlist[curTrack] && playlist[curTrack].id===id) stopMusic();
+  try{ await new Promise(function(res,rej){ var r=mtx("readwrite").delete(id); r.onsuccess=res; r.onerror=rej; }); }catch(e){}
+  await loadPlaylist(); renderMusic(); toast("Removed");
+}
+async function clearMusic(){
+  if(!confirm("Remove all music from this device?")) return;
+  try{ await new Promise(function(res,rej){ var r=mtx("readwrite").clear(); r.onsuccess=res; r.onerror=rej; }); }catch(e){}
+  stopMusic(); await loadPlaylist(); renderMusic(); toast("Music cleared");
+}
+async function playTrack(i){
+  if(!playlist.length) return;
+  curTrack=(i+playlist.length)%playlist.length;
+  var blob=await getBlob(playlist[curTrack].id);
+  if(!blob){ toast("Track missing"); return; }
+  if(curUrl) URL.revokeObjectURL(curUrl);
+  curUrl=URL.createObjectURL(blob);
+  var a=$("audioEl"); a.src=curUrl; a.volume=1;
+  a.play().catch(function(){ toast("Tap ▶ to start music"); });
+  setMediaSession(); updateMusicUI(); renderMusic();
+}
+async function cueFirstTrack(){
+  if(!playlist.length) return;
+  var a=$("audioEl"); if(curTrack>=0 || a.src) return;   // already have a track loaded → leave it
+  var p0=poolIndices(); var i=p0.length?p0[0]:0;
+  var blob=await getBlob(playlist[i].id); if(!blob) return;
+  curTrack=i; if(curUrl) URL.revokeObjectURL(curUrl); curUrl=URL.createObjectURL(blob); a.src=curUrl;
+  setMediaSession(); updateMusicUI(); renderMusic();
+}
+function toggleMusic(){
+  if(!playlist.length){ toast("Add MP3s first"); return; }
+  var a=$("audioEl");
+  if(a.paused){ if(curTrack<0) playTrack(0); else a.play().catch(function(){}); }
+  else a.pause();
+}
+function moodName(c){ return c==="warmup"?"Warm-up":c==="cooldown"?"Cool-down":"Intense"; }
+function poolIndices(){
+  var p=[]; for(var i=0;i<playlist.length;i++){ if(playlist[i].cat===currentMood) p.push(i); }
+  if(!p.length) for(var j=0;j<playlist.length;j++) p.push(j);   // fallback: whole library (no silence)
+  return p;
+}
+function nextTrack(){ var p=poolIndices(); if(!p.length) return; var pos=p.indexOf(curTrack); playTrack(p[pos<0?0:(pos+1)%p.length]); }
+function prevTrack(){ var p=poolIndices(); if(!p.length) return; var pos=p.indexOf(curTrack); playTrack(p[pos<0?0:(pos-1+p.length)%p.length]); }
+function playFromPool(){ var p=poolIndices(); if(p.length) playTrack(p[0]); }
+function reactToMood(){
+  if(!cur){ currentMood=null; updateMusicUI(); return; }
+  var s=cur.stages[idx];
+  currentMood = s.mood || (s.type==="walk"?"warmup":"intense");
+  var a=$("audioEl");
+  if(!a.paused && curTrack>=0 && playlist[curTrack] && poolIndices().indexOf(curTrack)<0) playFromPool(); // wrong pool → switch
+  updateMusicUI();
+}
+function stopMusic(){ var a=$("audioEl"); try{a.pause();}catch(e){} a.removeAttribute("src"); if(curUrl){URL.revokeObjectURL(curUrl); curUrl=null;} curTrack=-1; musicPlaying=false; updateMusicUI(); }
+/* iOS web apps can't change media volume (hardware-locked), so "duck" = a brief pause so the alarm cuts through. */
+function duck(){ var a=$("audioEl"); if(!a||a.paused) return; a.pause(); clearTimeout(duckT); duckT=setTimeout(function(){ a.play().catch(function(){}); },700); }
+function overAlarm(duckIt){ beep(440,260); setTimeout(function(){beep(440,260);},300); if(duckIt) duck(); }
+function fmtTime(s){ s=Math.floor(s||0); if(isNaN(s)||s<0) s=0; return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+function onTimeUpdate(){
+  var a=$("audioEl"), dur=a.duration;
+  if($("npCur")) $("npCur").textContent=fmtTime(a.currentTime);
+  if($("npDur")) $("npDur").textContent=fmtTime(dur);
+  var sk=$("npSeek"); if(sk && dur && !isNaN(dur) && document.activeElement!==sk) sk.value=Math.round((a.currentTime/dur)*1000);
+}
+function seekMusic(v){ var a=$("audioEl"); if(a.duration && !isNaN(a.duration)) a.currentTime=(v/1000)*a.duration; }
+function openNP(){ if(!playlist.length){ toast("Add MP3s first"); return; } renderMusic(); onTimeUpdate(); $("nowPlaying").style.display="flex"; }
+function closeNP(){ $("nowPlaying").style.display="none"; }
+function setMediaSession(){
+  if(!("mediaSession" in navigator)) return;
+  try{
+    navigator.mediaSession.metadata=new MediaMetadata({ title:(playlist[curTrack]||{}).name||"MAF Pacer", artist:"Suno", album:"MAF Pacer" });
+    navigator.mediaSession.setActionHandler("nexttrack", nextTrack);
+    navigator.mediaSession.setActionHandler("previoustrack", prevTrack);
+    navigator.mediaSession.setActionHandler("play", function(){ $("audioEl").play(); });
+    navigator.mediaSession.setActionHandler("pause", function(){ $("audioEl").pause(); });
+  }catch(e){}
+}
+function updateMusicUI(){
+  var cur1=(curTrack>=0&&playlist[curTrack])?playlist[curTrack].name:null;
+  var nm=cur1||(playlist.length?(playlist.length+" track"+(playlist.length===1?"":"s")+" ready"):"No music loaded");
+  if($("trackNow")) $("trackNow").textContent=nm;
+  if($("trackNowPl")) $("trackNowPl").textContent=cur1?("♪ "+cur1):"♪ Tap for player";
+  if($("npTitle")) $("npTitle").textContent=cur1||(playlist.length?"Nothing playing yet":"No music");
+  if($("playBtn")) $("playBtn").textContent=musicPlaying?"⏸ Pause":"▶ Play";
+  if($("playBtnPl")) $("playBtnPl").textContent=musicPlaying?"⏸":"▶";
+  if($("npPlay")) $("npPlay").textContent=musicPlaying?"⏸ Pause":"▶ Play";
+  if($("musicBar")) $("musicBar").style.display=playlist.length?"flex":"none";
+  if($("npPool")){
+    if(currentMood){ var tg=playlist.filter(function(t){return t.cat===currentMood;}).length;
+      $("npPool").textContent="Phase pool: "+catLabel(currentMood)+" "+moodName(currentMood)+(tg?(" ("+tg+" song"+(tg===1?"":"s")+")"):" (none tagged — using all)");
+    } else $("npPool").textContent="";
+  }
+}
+function catLabel(c){ return c==="warmup"?"🌅":c==="cooldown"?"🌙":"🔥"; }
+function trackRow(t,i){
+  var row=document.createElement("div"); row.className="histitem";
+  var nm=document.createElement("div"); nm.style.cssText="flex:1;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"; nm.textContent=(i===curTrack?"▶ ":"")+t.name; nm.onclick=function(){ playTrack(i); };
+  var cat=document.createElement("button"); cat.className="btn-ghost"; cat.style.cssText="flex:0;padding:4px 8px;font-size:15px;"; cat.textContent=catLabel(t.cat); cat.title="Pool: "+moodName(t.cat)+" — tap to change"; cat.onclick=function(ev){ ev.stopPropagation(); cycleCat(t.id); };
+  var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.onclick=function(){ removeTrack(t.id); };
+  row.appendChild(nm); row.appendChild(cat); row.appendChild(del); return row;
+}
+function renderMusic(){
+  [["trackList",true],["npList",false]].forEach(function(p){
+    var el=$(p[0]); if(!el) return; el.innerHTML="";
+    if(!playlist.length){ el.innerHTML='<div class="empty">No tracks yet. Add your Suno MP3s — they stay on this device.</div>'; return; }
+    playlist.forEach(function(t,i){ el.appendChild(trackRow(t,i)); });
+    if(p[1]){ var c=document.createElement("button"); c.className="btn-ghost"; c.style.cssText="width:100%;margin-top:8px;font-size:13px;"; c.textContent="Clear all music"; c.onclick=clearMusic; el.appendChild(c); }
+  });
+  updateMusicUI();
+}
+function initMusic(){
+  var a=$("audioEl"); if(!a) return;
+  a.addEventListener("ended", nextTrack);
+  a.addEventListener("play", function(){ musicPlaying=true; updateMusicUI(); renderMusic(); });
+  a.addEventListener("pause", function(){ musicPlaying=false; updateMusicUI(); });
+  a.addEventListener("timeupdate", onTimeUpdate);
+  a.addEventListener("loadedmetadata", onTimeUpdate);
+  openDB()
+    .then(function(){ return migrateSessions(); })
+    .then(function(){ return loadSessionsFromDB(); })
+    .then(function(){ renderHistory(); renderHome(); return loadPlaylist(); })
+    .then(function(){ renderMusic(); })
+    .catch(function(){ renderHistory(); renderHome(); renderMusic(); });
+  if(navigator.storage && navigator.storage.persist){ try{ navigator.storage.persist(); }catch(e){} }   // request durable storage
+}
+
+/* ===================== v2: DASHBOARD / DEEP-DIVE / CHARTS / EXPORT ===================== */
+let detailRec=null;
+function renderHome(){
+  var today=WORKOUTS.find(function(w){return w.id===TODAY_ID;})||WORKOUTS[0];
+  var mins=Math.round(today.stages.reduce(function(a,s){return a+s.sec;},0)/60);
+  if($("homeTodayTitle")) $("homeTodayTitle").textContent=today.title;
+  if($("homeTodayTag")) $("homeTodayTag").textContent=(today.tag||"")+" · "+mins+" min";
+  if($("homeStartBtn")) $("homeStartBtn").onclick=function(){ startWorkout(today); };
+  var now=Date.now(), wk=SESSIONS.filter(function(s){ return (now-new Date(s.date).getTime())<6048e5; }).length;
+  if($("homeWeek")) $("homeWeek").textContent=wk;
+  if($("homeLast")){
+    var last=SESSIONS[0];
+    if(last){ var d=new Date(last.date).toLocaleDateString(undefined,{month:"short",day:"numeric"});
+      var z=last.derived&&last.derived.zoneSec, inz=z?Math.round((z.aerobic+z.sweet)/60):null;
+      $("homeLast").innerHTML="<b>"+last.title.replace(/^\d+ · /,"")+"</b> · "+d+(last.avg!=null?(" · avg "+last.avg):"")+(inz!=null?(" · "+inz+"m in zone"):"");
+    } else $("homeLast").textContent="No runs yet — your first one will show here.";
+  }
+  setHRUI();
+}
+function kv(k,v){ return '<div class="kv"><span class="k">'+k+'</span><span>'+v+'</span></div>'; }
+function openSession(id){
+  detailRec=SESSIONS.find(function(s){return s.id===id;});
+  if(!detailRec){ toast("Session not found"); return; }
+  renderDetail(detailRec); show("detail");
+}
+function renderDetail(r){
+  $("detailTitle").textContent=r.title.replace(/^\d+ · /,"");
+  $("detailDate").textContent=new Date(r.date).toLocaleString();
+  drawTrace(r,$("detailTrace")); drawZoneBar(r,$("detailZone"));
+  var s=[];
+  if(r.avg!=null) s.push(kv("Avg / Max / Min HR", r.avg+" / "+r.max+" / "+r.min));
+  s.push(kv("Duration", fmt(r.durationSec||0)));
+  if(r.overSec!=null) s.push(kv("Over "+r.ceiling+" bpm", (r.overSec/60).toFixed(1)+" min"+((r.derived&&r.derived.overPct!=null)?(" ("+r.derived.overPct+"%)"):"")));
+  if(r.mafSpeed!=null) s.push(kv("MAF speed", r.mafSpeed+" "+(r.units||"mph")));
+  if(r.rpe!=null) s.push(kv("RPE", r.rpe+"/10"));
+  if(r.rr&&r.rr.length) s.push(kv("HRV samples (R-R)", r.rr.length));
+  if(r.notes) s.push(kv("Notes", r.notes));
+  $("detailStats").innerHTML=s.join("")||'<div class="empty">No stats.</div>';
+  var ps=(r.perStage||[]).map(function(p){
+    var dev=(p.actual.speed!==p.plan.speed)||(p.actual.incline!==p.plan.incline);
+    var sp=(p.actual.speed==null?"hold":p.actual.speed)+"/"+p.actual.incline+"%";
+    var hr=p.avg!=null?(" · HR "+p.avg+"/"+p.max):"";
+    return '<div class="kv"><span class="k">'+p.name+(dev?" *":"")+'</span><span>'+sp+hr+'</span></div>';
+  }).join("");
+  $("detailStages").innerHTML=ps||'<div class="empty">No stage data.</div>';
+}
+function deleteDetail(){
+  if(!detailRec) return;
+  if(!confirm("Delete this saved session? This can't be undone.")) return;
+  var i=-1; for(var k=0;k<SESSIONS.length;k++){ if(SESSIONS[k].id===detailRec.id){ i=k; break; } }
+  if(i>=0){ delSessionDB(SESSIONS[i].id); SESSIONS.splice(i,1); }
+  detailRec=null; renderHistory(); show("sessions"); toast("Session deleted");
+}
+function dsTrace(hr, maxPts){
+  if(hr.length<=maxPts) return hr.slice();
+  var bucket=Math.ceil(hr.length/maxPts), out=[];
+  for(var i=0;i<hr.length;i+=bucket){ var sl=hr.slice(i,i+bucket), mn=sl[0], mx=sl[0];
+    for(var j=0;j<sl.length;j++){ if(sl[j][1]<mn[1])mn=sl[j]; if(sl[j][1]>mx[1])mx=sl[j]; }
+    if(mn[0]<=mx[0]){ out.push(mn); if(mx!==mn) out.push(mx); } else { out.push(mx); if(mx!==mn) out.push(mn); }
+  }
+  return out;
+}
+function drawTrace(rec, el){
+  var hr=rec.hr||[]; if(hr.length<2){ el.innerHTML='<div class="empty">No HR trace for this run (strap wasn’t connected).</div>'; return; }
+  var W=700,H=320,padL=30,padR=42,padT=10,padB=22, c=rec.ceiling;
+  var dur=rec.durationSec||hr[hr.length-1][0]||1;
+  var bpms=hr.map(function(p){return p[1];}), minB=Math.min.apply(null,bpms), maxB=Math.max.apply(null,bpms);
+  var loY=Math.min(minB,c-15)-3, hiY=Math.max(maxB,c+6)+3;
+  function X(t){ return padL+(W-padL-padR)*(t/dur); }
+  function Y(b){ return padT+(H-padT-padB)*(1-(b-loY)/(hiY-loY)); }
+  function band(y1,y2,f){ var a=Y(Math.min(y2,hiY)), b=Y(Math.max(y1,loY)); return '<rect x="'+padL+'" y="'+a.toFixed(1)+'" width="'+(W-padL-padR)+'" height="'+Math.max(0,(b-a)).toFixed(1)+'" fill="'+f+'"/>'; }
+  var g=band(loY,c-10,'rgba(139,149,184,.10)')+band(c-10,c-5,'rgba(34,197,94,.13)')+band(c-5,c,'rgba(245,158,11,.15)')+band(c,hiY,'rgba(239,68,68,.16)');
+  g+='<line x1="'+padL+'" y1="'+Y(c).toFixed(1)+'" x2="'+(W-padR)+'" y2="'+Y(c).toFixed(1)+'" stroke="#ef4444" stroke-width="1" stroke-dasharray="4 3"/>';
+  var cum=0; (rec.perStage||[]).forEach(function(p){ cum+=(p.plan&&p.plan.sec)||0; if(cum>0&&cum<dur){ g+='<line x1="'+X(cum).toFixed(1)+'" y1="'+padT+'" x2="'+X(cum).toFixed(1)+'" y2="'+(H-padB)+'" stroke="rgba(255,255,255,.10)" stroke-width="1"/>'; } });
+  var ds=dsTrace(hr,180), sp=[]; ds.forEach(function(p){ var s=speedAt(rec,p[0]); if(s!=null) sp.push([p[0],s]); });
+  if(sp.length){ var sv=sp.map(function(p){return p[1];}); var smin=Math.min.apply(null,sv)-0.3, smax=Math.max.apply(null,sv)+0.3; if(smax-smin<0.5)smax=smin+1;
+    var SY=function(s){ return padT+(H-padT-padB)*(1-(s-smin)/(smax-smin)); };
+    g+='<polyline fill="none" stroke="#9fb4ff" stroke-width="1.4" stroke-dasharray="3 3" opacity=".75" points="'+sp.map(function(p){return X(p[0]).toFixed(1)+","+SY(p[1]).toFixed(1);}).join(" ")+'"/>';
+    g+='<text x="'+(W-padR+3)+'" y="'+(SY(smax)+4).toFixed(1)+'" fill="#9fb4ff" font-size="10">'+smax.toFixed(1)+'</text>';
+    g+='<text x="'+(W-padR+3)+'" y="'+(SY(smin)+4).toFixed(1)+'" fill="#9fb4ff" font-size="10">'+smin.toFixed(1)+'</text>';
+  }
+  g+='<polyline fill="none" stroke="#eaf0ff" stroke-width="1.8" points="'+dsTrace(hr,320).map(function(p){return X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1);}).join(" ")+'"/>';
+  g+='<text x="2" y="'+(Y(c)+3).toFixed(1)+'" fill="#ef4444" font-size="10">'+c+'</text>';
+  g+='<text x="2" y="'+(Y(loY)).toFixed(1)+'" fill="#8d97b8" font-size="10">'+Math.round(loY)+'</text>';
+  for(var q=0;q<=4;q++){ var tt=dur*q/4; g+='<text x="'+X(tt).toFixed(1)+'" y="'+(H-6)+'" fill="#8d97b8" font-size="10" text-anchor="middle">'+fmt(tt)+'</text>'; }
+  el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'">'+g+'</svg>';
+}
+function drawZoneBar(rec, el){
+  var z=rec.derived&&rec.derived.zoneSec; if(!z){ el.innerHTML='<div class="empty">No zone data.</div>'; return; }
+  var tot=z.under+z.aerobic+z.sweet+z.over; if(!tot){ el.innerHTML='<div class="empty">No HR recorded.</div>'; return; }
+  function seg(s,col){ var p=s/tot*100; return p>0?'<div style="width:'+p.toFixed(1)+'%;background:'+col+'"></div>':""; }
+  function mn(s){ return (s/60).toFixed(s>=600?0:1)+"m"; }
+  el.innerHTML='<div class="zonebar">'+seg(z.under,"#8d97b8")+seg(z.aerobic,"#22c55e")+seg(z.sweet,"#f59e0b")+seg(z.over,"#ef4444")+'</div>'+
+    '<div class="zonelegend"><span>under '+mn(z.under)+'</span><span style="color:#22c55e">aerobic '+mn(z.aerobic)+'</span><span style="color:#f59e0b">sweet '+mn(z.sweet)+'</span><span style="color:#ef4444">over '+mn(z.over)+'</span></div>';
+}
+function exportFile(){
+  try{
+    var blob=new Blob([JSON.stringify({profile:PROFILE,sessions:SESSIONS},null,2)],{type:"application/json"});
+    var url=URL.createObjectURL(blob), a=document.createElement("a");
+    a.href=url; a.download="maf-pacer-data.json"; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); },1000); toast("Exported to file");
+  }catch(e){ toast("Export failed — use Copy"); }
+}
+async function importFile(files){
+  if(!files||!files.length) return;
+  try{
+    var txt=await files[0].text(), obj=JSON.parse(txt), arr=(obj&&obj.sessions)||[];
+    if(!Array.isArray(arr)||!arr.length){ toast("No sessions in that file"); return; }
+    if(!mdb){ try{ await openDB(); }catch(e){} }
+    arr.forEach(function(r){ if(r&&r.id) putSessionDB(r); });
+    await loadSessionsFromDB(); renderHistory(); renderHome(); toast(arr.length+" sessions imported");
+  }catch(e){ toast("Import failed — bad file"); }
+}
+
+load();
+</script>
+</body>
+</html>
