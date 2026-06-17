@@ -245,6 +245,7 @@
   .lc-head{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
   .lc-spark{ height:46px; margin:8px 0 6px; }
   .lc-meta{ font-size:13px; color:var(--ink); }
+  .cap{ font-size:12px; color:var(--muted); margin-top:10px; line-height:1.45; }
 </style>
 </head>
 <body>
@@ -387,9 +388,13 @@
 
   <!-- ============ SESSIONS ============ -->
   <section id="sessions" class="screen">
-    <h1>Sessions</h1>
-    <h2>MAF test — speed at HR ceiling</h2>
-    <div class="card chart-wrap"><div id="chart"></div></div>
+    <h1>Your progress</h1>
+    <h2>Are you getting faster?</h2>
+    <div class="card chart-wrap"><div class="sub" style="margin-bottom:6px;">Pace you hold at HR 140 — higher is fitter</div><div id="trMaf"></div><div class="cap" id="trMafCap"></div></div>
+    <h2>Same-effort heart rate</h2>
+    <div class="card chart-wrap"><div class="sub" style="margin-bottom:6px;">Your HR at your usual pace — lower is fitter</div><div id="trSS"></div><div class="cap" id="trSSCap"></div></div>
+    <h2>Weekly easy minutes</h2>
+    <div class="card chart-wrap"><div class="sub" style="margin-bottom:6px;">Aerobic + sweet-spot minutes per week</div><div id="trVol"></div><div class="cap" id="trVolCap"></div></div>
     <h2>History <span class="sub" style="text-transform:none;">(tap a run for details)</span></h2>
     <div id="histList"></div>
   </section>
@@ -506,7 +511,7 @@
 <nav class="tabbar" id="tabbar">
   <button data-tab="home" onclick="show('home')"><span class="ico">🏠</span>Home</button>
   <button data-tab="run" onclick="show('run')"><span class="ico">▶</span>Run</button>
-  <button data-tab="sessions" onclick="show('sessions')"><span class="ico">📊</span>Sessions</button>
+  <button data-tab="sessions" onclick="show('sessions')"><span class="ico">📊</span>Trends</button>
   <button data-tab="more" onclick="show('more')"><span class="ico">⋯</span>More</button>
 </nav>
 <audio id="audioEl" preload="metadata"></audio>
@@ -537,7 +542,7 @@
    Claude edits the WORKOUTS below each cycle from your data.
    ============================================================ */
 
-const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3 };
+const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0 };
 
 /* ---- WORKOUTS (Claude updates this list) ----
    stage = { name, type:'walk'|'jog'|'hold', speed:Number|null, incline:Number, sec:Number, cue:String }
@@ -1024,7 +1029,7 @@ function renderHistory(){
     var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.title="Delete this session"; del.onclick=function(){ deleteSession(i); };
     el.appendChild(info); el.appendChild(cp); el.appendChild(del); list.appendChild(el);
   });
-  drawChart(arr.filter(function(r){return r.mafSpeed!=null;}).reverse());
+  renderTrends();
 }
 function drawChart(data){
   const w=480,h=160,pad=28;
@@ -1412,6 +1417,86 @@ async function importFile(files){
     arr.forEach(function(r){ if(r&&r.id) putSessionDB(r); });
     await loadSessionsFromDB(); renderHistory(); renderHome(); toast(arr.length+" sessions imported");
   }catch(e){ toast("Import failed — bad file"); }
+}
+
+/* ===================== v3: TRENDS / ANALYTICS ===================== */
+function fmtDate(ms){ return new Date(ms).toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
+function fit(pts){ var n=pts.length,sx=0,sy=0,sxx=0,sxy=0,day=864e5; pts.forEach(function(p){ var x=p.t/day; sx+=x; sy+=p.v; sxx+=x*x; sxy+=x*p.v; }); var d=(n*sxx-sx*sx)||1; return { m:(n*sxy-sx*sy)/d, b:(sy-sx*((n*sxy-sx*sy)/d))/n }; }
+function lineTrend(el, pts, o){
+  o=o||{}; if(!el) return;
+  if(pts.length<2){ el.innerHTML='<div class="empty">'+(o.empty||"Log 2+ runs to see this trend.")+'</div>'; return; }
+  var W=700,H=200,padL=34,padR=16,padT=14,padB=24;
+  var vs=pts.map(function(p){return p.v;}), minV=Math.min.apply(null,vs), maxV=Math.max.apply(null,vs);
+  if(o.goal!=null){ minV=Math.min(minV,o.goal); maxV=Math.max(maxV,o.goal); }
+  var pd=(maxV-minV)*0.18||1; minV-=pd; maxV+=pd;
+  var t0=pts[0].t, t1=pts[pts.length-1].t; if(t1<=t0) t1=t0+864e5;
+  var X=function(t){ return padL+(W-padL-padR)*((t-t0)/(t1-t0)); }, Y=function(v){ return padT+(H-padT-padB)*(1-(v-minV)/(maxV-minV)); };
+  var col=o.color||"var(--accent)", g="<defs><linearGradient id=\"ltg\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\""+(o.fill||"rgba(91,140,255,.22)")+"\"/><stop offset=\"1\" stop-color=\"rgba(0,0,0,0)\"/></linearGradient></defs>";
+  if(o.goal!=null){ g+='<line x1="'+padL+'" y1="'+Y(o.goal).toFixed(1)+'" x2="'+(W-padR)+'" y2="'+Y(o.goal).toFixed(1)+'" stroke="var(--z-sweet)" stroke-width="1.5" stroke-dasharray="5 4"/><text x="'+(W-padR)+'" y="'+(Y(o.goal)-5).toFixed(1)+'" fill="var(--z-sweet)" font-size="13" text-anchor="end">goal '+o.goal+(o.unit||"")+'</text>'; }
+  var pp=pts.map(function(p){ return X(p.t).toFixed(1)+","+Y(p.v).toFixed(1); });
+  g+='<polygon points="'+X(t0).toFixed(1)+","+(H-padB)+" "+pp.join(" ")+" "+X(t1).toFixed(1)+","+(H-padB)+'" fill="url(#ltg)"/>';
+  g+='<polyline points="'+pp.join(" ")+'" fill="none" stroke="'+col+'" stroke-width="2.6"/>';
+  pts.forEach(function(p){ g+='<circle cx="'+X(p.t).toFixed(1)+'" cy="'+Y(p.v).toFixed(1)+'" r="3.6" fill="'+col+'"/>'; });
+  g+='<text x="3" y="'+(Y(maxV)+10).toFixed(1)+'" fill="var(--muted)" font-size="11">'+(Math.round(maxV*10)/10)+'</text>';
+  g+='<text x="3" y="'+Y(minV).toFixed(1)+'" fill="var(--muted)" font-size="11">'+(Math.round(minV*10)/10)+'</text>';
+  g+='<text x="'+padL+'" y="'+(H-6)+'" fill="var(--muted)" font-size="11">'+fmtDate(t0)+'</text>';
+  g+='<text x="'+(W-padR)+'" y="'+(H-6)+'" fill="var(--muted)" font-size="11" text-anchor="end">'+fmtDate(t1)+'</text>';
+  el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'">'+g+'</svg>';
+}
+function barTrend(el, bars, o){
+  o=o||{}; if(!el) return; if(!bars.length){ el.innerHTML='<div class="empty">Not enough weeks logged yet.</div>'; return; }
+  var W=700,H=200,padL=30,padR=14,padT=14,padB=26;
+  var maxV=Math.max.apply(null,bars.map(function(b){return b.v;})); if(o.goal!=null) maxV=Math.max(maxV,o.goal); maxV=(maxV*1.15)||1;
+  var n=bars.length, gap=(W-padL-padR)/n, bw=gap*0.6, Y=function(v){ return padT+(H-padT-padB)*(1-v/maxV); }, g="";
+  if(o.goal!=null){ g+='<line x1="'+padL+'" y1="'+Y(o.goal).toFixed(1)+'" x2="'+(W-padR)+'" y2="'+Y(o.goal).toFixed(1)+'" stroke="var(--z-sweet)" stroke-width="1.5" stroke-dasharray="5 4"/><text x="'+(W-padR)+'" y="'+(Y(o.goal)-5).toFixed(1)+'" fill="var(--z-sweet)" font-size="13" text-anchor="end">goal '+o.goal+(o.unit||"")+'</text>'; }
+  bars.forEach(function(b,i){ var x=padL+gap*i+(gap-bw)/2, y=Y(b.v), hh=Math.max(0,(H-padB)-y); g+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+hh.toFixed(1)+'" rx="3" fill="'+(o.color||"var(--z-aerobic)")+'" opacity="'+(i===n-1?1:.5)+'"/><text x="'+(x+bw/2).toFixed(1)+'" y="'+(H-9)+'" fill="var(--muted)" font-size="10" text-anchor="middle">'+fmtDate(b.t)+'</text>'; });
+  el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'">'+g+'</svg>';
+}
+function anchorSpeed(){
+  var tally={}; SESSIONS.forEach(function(s){ var hr=s.hr||[]; for(var i=0;i<hr.length;i++){ var sp=speedAt(s,hr[i][0]); if(sp!=null && sp>=2){ var k=Math.round(sp*10)/10; tally[k]=(tally[k]||0)+1; } } });
+  var best=null,bn=-1; Object.keys(tally).forEach(function(k){ if(tally[k]>bn){ bn=tally[k]; best=parseFloat(k); } });
+  return best;
+}
+function ssHR(rec, anchor){ if(anchor==null) return null; var hr=rec.hr||[], sum=0,n=0; for(var i=0;i<hr.length;i++){ var sp=speedAt(rec,hr[i][0]); if(sp!=null && Math.abs(sp-anchor)<=0.15){ sum+=hr[i][1]; n++; } } return n>=15? Math.round(sum/n):null; }
+function weekStart(d){ var x=new Date(d); var day=(x.getDay()+6)%7; x.setHours(0,0,0,0); x.setDate(x.getDate()-day); return x.getTime(); }
+function weeklyVolume(){ var m={}; SESSIONS.forEach(function(s){ var z=s.derived&&s.derived.zoneSec; if(!z) return; var k=weekStart(s.date); m[k]=(m[k]||0)+(z.aerobic+z.sweet)/60; }); return Object.keys(m).map(Number).sort(function(a,b){return a-b;}).slice(-8).map(function(k){ return {t:k, v:Math.round(m[k])}; }); }
+function renderTrends(){
+  var mafPts=SESSIONS.filter(function(s){return s.mafSpeed!=null;}).map(function(s){return {t:new Date(s.date).getTime(), v:s.mafSpeed};}).sort(function(a,b){return a.t-b.t;});
+  lineTrend($("trMaf"), mafPts, {color:"var(--z-aerobic)", unit:" mph", goal:(PROFILE.goalSpeed||5), fill:"rgba(52,199,89,.20)", empty:"Log a MAF test (workout 4) to start tracking your pace at 140."});
+  if($("trMafCap")) $("trMafCap").textContent=mafCaption(mafPts);
+  var an=anchorSpeed();
+  var ssPts=SESSIONS.map(function(s){return {t:new Date(s.date).getTime(), v:ssHR(s,an)};}).filter(function(p){return p.v!=null;}).sort(function(a,b){return a.t-b.t;});
+  lineTrend($("trSS"), ssPts, {color:"var(--z-easy)", unit:" bpm", fill:"rgba(79,163,255,.20)", empty:"A couple more steady runs and your same-pace HR trend appears here."});
+  if($("trSSCap")) $("trSSCap").textContent=ssCaption(ssPts, an);
+  var vol=weeklyVolume();
+  barTrend($("trVol"), vol, {color:"var(--z-aerobic)", goal:150, unit:""});
+  if($("trVolCap")) $("trVolCap").textContent=volCaption(vol);
+}
+function mafCaption(p){
+  if(p.length<2) return "Run the Monthly MAF Test now and then; each one plots here so you can watch your pace at 140 climb.";
+  var first=p[0].v, latest=p[p.length-1].v, goal=PROFILE.goalSpeed||5, dv=Math.round((latest-first)*100)/100;
+  var s=(dv>=0?"+":"")+dv+" mph since your first test. ";
+  if(latest>=goal) return s+"You've reached your "+goal+" mph goal — 🎉 time to set a new one.";
+  var f=fit(p);
+  if(f.m>0.0002){ var xGoal=(goal-f.b)/f.m, etaMs=xGoal*864e5, lastMs=p[p.length-1].t;
+    if(etaMs>lastMs && etaMs<lastMs+3650*864e5) return s+"At this rate you'll hit "+goal+" mph around "+new Date(etaMs).toLocaleDateString(undefined,{month:"short",year:"numeric"})+".";
+    return s+"Trending up — keep stacking base.";
+  }
+  return s+"Flat for now — more easy volume will move it.";
+}
+function ssCaption(p, an){
+  if(an==null) return "Once you log steady runs at a consistent pace, this shows whether your HR is dropping at that speed.";
+  if(p.length<2) return "At ~"+an+" mph — one more run and you'll see if your HR is dropping (the clearest sign of fitness between tests).";
+  var first=p[0].v, latest=p[p.length-1].v, d=latest-first;
+  if(d<=-1) return "At ~"+an+" mph your HR dropped "+first+"→"+latest+" bpm — your aerobic engine is getting more efficient. 💪";
+  if(d>=2) return "At ~"+an+" mph your HR is up "+first+"→"+latest+" — could be heat, fatigue, or a hard stretch. Watch it.";
+  return "At ~"+an+" mph your HR is holding around "+latest+" bpm — steady; keep the base building.";
+}
+function volCaption(v){
+  if(!v.length) return "Your weekly easy-minute totals will build here as you log runs.";
+  var avg=Math.round(v.reduce(function(a,b){return a+b.v;},0)/v.length), last=v[v.length-1].v;
+  if(last>=150) return "This week: "+last+" min in the aerobic zone — at/above the 150-min mark. Strong consistency.";
+  return "Averaging "+avg+" min/week. "+(150-last)+" more aerobic minutes this week clears the 150 line.";
 }
 
 load();
