@@ -212,6 +212,39 @@
   .gauge-center .hrbig{ font-size:62px; line-height:.9; }
   .gauge-center .hrcap{ font-size:12px; margin-top:3px; }
   .gauge-center .verdict{ font-size:15px; margin-top:6px; min-height:18px; }
+
+  /* ===== v3: holistic visual language ===== */
+  body{ background:radial-gradient(135% 90% at 50% -8%, #1b2336 0%, var(--bg) 52%) no-repeat fixed; background-color:var(--bg); }
+  .card{ background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)), var(--panel); box-shadow:0 8px 24px rgba(0,0,0,.30); }
+  .bpm.z-easy{ color:var(--z-easy); } .bpm.z-aerobic{ color:var(--z-aerobic); } .bpm.z-sweet{ color:var(--z-sweet); } .bpm.z-over{ color:var(--z-over); }
+  /* Home dashboard */
+  .home-head{ display:flex; justify-content:space-between; align-items:baseline; margin:6px 0 16px; }
+  .greet{ font-size:26px; font-weight:800; letter-spacing:-.02em; }
+  .home-head .date{ font-size:13px; color:var(--muted); }
+  .today-hero{ position:relative; border-radius:20px; padding:18px; margin-bottom:14px; overflow:hidden;
+    background:linear-gradient(140deg,#2f6bff 0%,#7b4bff 100%); box-shadow:0 16px 34px rgba(80,90,255,.32); }
+  .today-hero::after{ content:""; position:absolute; right:-36px; top:-46px; width:170px; height:170px; border-radius:50%; background:rgba(255,255,255,.10); }
+  .th-top{ display:flex; justify-content:space-between; align-items:center; position:relative; z-index:1; }
+  .th-kicker{ font-size:11px; font-weight:700; letter-spacing:.09em; color:rgba(255,255,255,.82); }
+  .th-dur{ font-size:12px; font-weight:700; color:#fff; background:rgba(255,255,255,.20); padding:4px 11px; border-radius:999px; }
+  .th-title{ font-size:25px; font-weight:800; color:#fff; margin:12px 0 2px; letter-spacing:-.01em; position:relative; z-index:1; }
+  .th-sub{ font-size:13px; color:rgba(255,255,255,.88); margin-bottom:16px; position:relative; z-index:1; }
+  .th-start{ width:100%; background:#fff; color:#13227a; font-weight:800; font-size:17px; border:none; border-radius:14px; padding:15px; position:relative; z-index:1; box-shadow:0 6px 16px rgba(0,0,0,.18); }
+  .home-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px; }
+  .ring-card,.mini-stats{ background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:14px; box-shadow:0 8px 24px rgba(0,0,0,.28); }
+  .ring-card{ display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .ringwrap{ position:relative; width:108px; height:108px; }
+  .ringwrap svg{ width:100%; height:100%; }
+  .ring-center{ position:absolute; inset:0; display:flex; align-items:baseline; justify-content:center; }
+  .ring-center span{ font-size:36px; font-weight:800; line-height:1; } .ring-center small{ font-size:15px; color:var(--muted); margin-left:2px; }
+  .ring-lbl{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-top:10px; }
+  .mini-stats{ display:flex; flex-direction:column; justify-content:center; gap:14px; }
+  .ms-row{ display:flex; justify-content:space-between; align-items:center; }
+  .ms-row span{ color:var(--muted); font-size:13px; } .ms-row b{ font-size:20px; font-weight:800; }
+  .last-card{ background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:14px; margin-bottom:14px; box-shadow:0 8px 24px rgba(0,0,0,.28); }
+  .lc-head{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .lc-spark{ height:46px; margin:8px 0 6px; }
+  .lc-meta{ font-size:13px; color:var(--ink); }
 </style>
 </head>
 <body>
@@ -219,25 +252,42 @@
 
   <!-- ============ HOME (dashboard) ============ -->
   <section id="home" class="screen active">
-    <h1>MAF&nbsp;Pacer</h1>
+    <div class="home-head">
+      <div class="greet" id="greet">Ready to run?</div>
+      <div class="date" id="homeDate"></div>
+    </div>
     <div id="envBanner" class="banner" style="display:none;"></div>
-    <div class="hero">
-      <div class="sub" style="margin-bottom:2px;">Today's workout</div>
-      <div style="font-size:18px; font-weight:800;" id="homeTodayTitle">—</div>
-      <div class="sub" id="homeTodayTag" style="margin:2px 0 12px;">—</div>
-      <button class="btn-primary" id="homeStartBtn" style="width:100%;">▶ Start workout</button>
+    <div class="today-hero">
+      <div class="th-top"><span class="th-kicker">TODAY'S WORKOUT</span><span class="th-dur" id="homeTodayDur">—</span></div>
+      <div class="th-title" id="homeTodayTitle">—</div>
+      <div class="th-sub" id="homeTodayTag">—</div>
+      <button class="th-start" id="homeStartBtn">▶ Start workout</button>
     </div>
-    <div class="statgrid">
-      <div class="stat"><div class="big"><span id="ceilBig">140</span></div><div class="lbl">MAF cap · <b id="zoneTxt">130–140</b><span id="sweetTxt" style="display:none"></span></div></div>
-      <div class="stat"><div class="big"><span id="homeWeek">0</span>/3</div><div class="lbl">runs this week</div></div>
+    <div class="home-grid">
+      <div class="ring-card">
+        <div class="ringwrap">
+          <svg viewBox="0 0 120 120">
+            <defs><linearGradient id="ringgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#7b4bff"/></linearGradient></defs>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--surface3)" stroke-width="11"/>
+            <circle id="homeRing" cx="60" cy="60" r="50" fill="none" stroke="url(#ringgrad)" stroke-width="11" stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="314" stroke-dashoffset="314"/>
+          </svg>
+          <div class="ring-center"><span id="homeWeek">0</span><small>/3</small></div>
+        </div>
+        <div class="ring-lbl">runs this week</div>
+      </div>
+      <div class="mini-stats">
+        <div class="ms-row"><span>MAF cap</span><b id="ceilBig">140</b></div>
+        <div class="ms-row"><span>Zone</span><b id="zoneTxt" style="font-size:16px">130–140</b><span id="sweetTxt" style="display:none"></span></div>
+        <div class="ms-row"><span>Heart rate</span><b class="bpm" id="homeBpm" style="font-size:18px">––</b></div>
+      </div>
     </div>
-    <h2>Live heart rate <span class="sub" style="text-transform:none;">(needs Bluefy)</span></h2>
-    <div class="card">
-      <div class="hrchip" id="homeHrChip"><span class="dot"></span><span class="bpm" id="homeBpm">––</span><span class="sub" id="homeHrLabel">Not connected</span></div>
-      <button class="btn-good" id="homeConnect" style="width:100%; margin-top:10px;" onclick="connectHR()">Connect Polar H10</button>
+    <div class="last-card">
+      <div class="lc-head">LAST RUN</div>
+      <div class="lc-spark" id="homeSpark"></div>
+      <div class="lc-meta" id="homeLast">No runs yet.</div>
     </div>
-    <h2>Last run</h2>
-    <div class="card"><div class="sub" id="homeLast">No runs yet.</div></div>
+    <div class="hrchip" id="homeHrChip" style="display:none"><span class="dot"></span><span id="homeHrLabel"></span></div>
+    <button class="btn-good" id="homeConnect" style="width:100%;" onclick="connectHR()">Connect Polar H10</button>
   </section>
 
   <!-- ============ RUN (workout picker) ============ -->
@@ -832,10 +882,10 @@ function verdictText(z){ return z==="over"?"SLOW DOWN":z==="sweet"?"EASE UP":z==
 function setHRUI(){
   const val=HR.bpm==null?"––":HR.bpm, z=hrZone(HR.bpm);
   $("homeBpm").textContent=val;
-  $("homeHrChip").classList.toggle("live",HR.connected);
-  $("homeHrLabel").textContent=HR.connected?(HR.bpm!=null?"Live":"Connected"):"Not connected";
-  const hb=$("homeBpm"); hb.classList.remove("over","near"); if(z==="over") hb.classList.add("over"); else if(z==="near") hb.classList.add("near");
-  $("homeConnect").textContent=HR.connected?"Reconnect strap":"Connect Polar H10";
+  var hb=$("homeBpm"); hb.className="bpm"; var hmz=mafZone(HR.bpm); if(hmz) hb.classList.add("z-"+hmz);
+  if($("homeHrChip")) $("homeHrChip").classList.toggle("live",HR.connected);
+  if($("homeHrLabel")) $("homeHrLabel").textContent=HR.connected?(HR.bpm!=null?"Live":"Connected"):"Not connected";
+  if($("homeConnect")){ $("homeConnect").textContent=HR.connected?"Reconnect strap":"Connect Polar H10"; $("homeConnect").style.display=HR.connected?"none":"block"; }
   const m=$("mBpm"); m.textContent=val; m.className="hrbig bpm"; var mz=mafZone(HR.bpm); if(mz) m.classList.add("z-"+mz);
   var vd=$("verdict"); if(vd){ if(mz){ vd.textContent=verdictText(mz); vd.className="verdict z-"+mz; } else { vd.textContent=""; vd.className="verdict"; } }
   var gm=$("gMarker");
@@ -1234,19 +1284,37 @@ let detailRec=null;
 function renderHome(){
   var today=WORKOUTS.find(function(w){return w.id===TODAY_ID;})||WORKOUTS[0];
   var mins=Math.round(today.stages.reduce(function(a,s){return a+s.sec;},0)/60);
-  if($("homeTodayTitle")) $("homeTodayTitle").textContent=today.title;
-  if($("homeTodayTag")) $("homeTodayTag").textContent=(today.tag||"")+" · "+mins+" min";
+  if($("homeTodayTitle")) $("homeTodayTitle").textContent=today.title.replace(/^\d+ · /,"");
+  if($("homeTodayDur")) $("homeTodayDur").textContent=mins+" min";
+  if($("homeTodayTag")) $("homeTodayTag").textContent=today.tag||"";
   if($("homeStartBtn")) $("homeStartBtn").onclick=function(){ startWorkout(today); };
+  if($("homeDate")) $("homeDate").textContent=new Date().toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
+  if($("greet")){ var h=new Date().getHours(); $("greet").textContent=h<12?"Good morning":h<17?"Ready to run?":"Evening run?"; }
   var now=Date.now(), wk=SESSIONS.filter(function(s){ return (now-new Date(s.date).getTime())<6048e5; }).length;
   if($("homeWeek")) $("homeWeek").textContent=wk;
+  var ring=$("homeRing"); if(ring){ var C=2*Math.PI*50, f=Math.max(0,Math.min(1,wk/3)); ring.setAttribute("stroke-dashoffset",(C*(1-f)).toFixed(1)); }
+  var last=SESSIONS[0];
   if($("homeLast")){
-    var last=SESSIONS[0];
     if(last){ var d=new Date(last.date).toLocaleDateString(undefined,{month:"short",day:"numeric"});
       var z=last.derived&&last.derived.zoneSec, inz=z?Math.round((z.aerobic+z.sweet)/60):null;
-      $("homeLast").innerHTML="<b>"+last.title.replace(/^\d+ · /,"")+"</b> · "+d+(last.avg!=null?(" · avg "+last.avg):"")+(inz!=null?(" · "+inz+"m in zone"):"");
-    } else $("homeLast").textContent="No runs yet — your first one will show here.";
+      $("homeLast").innerHTML="<b>"+last.title.replace(/^\d+ · /,"")+"</b> · "+d+(last.avg!=null?(" · avg "+last.avg+" bpm"):"")+(inz!=null?(" · "+inz+"m in zone"):"");
+      drawSpark(last,$("homeSpark"));
+    } else { $("homeLast").textContent="No runs yet — your first one will show here."; if($("homeSpark")) $("homeSpark").innerHTML=""; }
   }
   setHRUI();
+}
+function drawSpark(rec, el){
+  if(!el) return; var hr=rec.hr||[]; if(hr.length<2){ el.innerHTML=""; return; }
+  var W=320,H=46,c=rec.ceiling, bp=hr.map(function(p){return p[1];});
+  var mn=Math.min.apply(null,bp), mx=Math.max.apply(null,bp); if(mx-mn<10){ mn-=5; mx+=5; }
+  var dur=rec.durationSec||hr[hr.length-1][0]||1;
+  var pts=dsTrace(hr,80).map(function(p){ return ((p[0]/dur)*W).toFixed(1)+","+(H-2-(H-4)*((p[1]-mn)/(mx-mn))).toFixed(1); });
+  var cy=(H-2-(H-4)*((c-mn)/(mx-mn))).toFixed(1);
+  el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:'+H+'px">'+
+    '<defs><linearGradient id="spg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(91,140,255,.40)"/><stop offset="1" stop-color="rgba(91,140,255,0)"/></linearGradient></defs>'+
+    '<polygon points="0,'+H+' '+pts.join(" ")+' '+W+','+H+'" fill="url(#spg)"/>'+
+    '<line x1="0" y1="'+cy+'" x2="'+W+'" y2="'+cy+'" stroke="rgba(255,90,82,.55)" stroke-width="1" stroke-dasharray="4 3"/>'+
+    '<polyline points="'+pts.join(" ")+'" fill="none" stroke="#9fb4ff" stroke-width="2"/></svg>';
 }
 function kv(k,v){ return '<div class="kv"><span class="k">'+k+'</span><span>'+v+'</span></div>'; }
 function openSession(id){
@@ -1310,7 +1378,10 @@ function drawTrace(rec, el){
     g+='<text x="'+(W-padR+3)+'" y="'+(SY(smax)+4).toFixed(1)+'" fill="#9fb4ff" font-size="10">'+smax.toFixed(1)+'</text>';
     g+='<text x="'+(W-padR+3)+'" y="'+(SY(smin)+4).toFixed(1)+'" fill="#9fb4ff" font-size="10">'+smin.toFixed(1)+'</text>';
   }
-  g+='<polyline fill="none" stroke="#eaf0ff" stroke-width="1.8" points="'+dsTrace(hr,320).map(function(p){return X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1);}).join(" ")+'"/>';
+  var hpts=dsTrace(hr,320).map(function(p){return X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1);});
+  g='<defs><linearGradient id="trg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(234,240,255,.20)"/><stop offset="1" stop-color="rgba(234,240,255,0)"/></linearGradient></defs>'+g;
+  g+='<polygon points="'+X(0).toFixed(1)+","+(H-padB)+" "+hpts.join(" ")+" "+X(dur).toFixed(1)+","+(H-padB)+'" fill="url(#trg)"/>';
+  g+='<polyline fill="none" stroke="#eaf0ff" stroke-width="2.4" points="'+hpts.join(" ")+'"/>';
   g+='<text x="2" y="'+(Y(c)+3).toFixed(1)+'" fill="#ef4444" font-size="10">'+c+'</text>';
   g+='<text x="2" y="'+(Y(loY)).toFixed(1)+'" fill="#8d97b8" font-size="10">'+Math.round(loY)+'</text>';
   for(var q=0;q<=4;q++){ var tt=dur*q/4; g+='<text x="'+X(tt).toFixed(1)+'" y="'+(H-6)+'" fill="#8d97b8" font-size="10" text-anchor="middle">'+fmt(tt)+'</text>'; }
