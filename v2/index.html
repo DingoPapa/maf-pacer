@@ -401,12 +401,14 @@
     <div class="recstrip" id="recStrip"></div>
     <div class="seg">
       <button class="seg-btn active" data-c="maf" onclick="showTrend('maf')">Faster?</button>
-      <button class="seg-btn" data-c="ss" onclick="showTrend('ss')">Effort HR</button>
+      <button class="seg-btn" data-c="ss" onclick="showTrend('ss')">HR</button>
       <button class="seg-btn" data-c="vol" onclick="showTrend('vol')">Volume</button>
+      <button class="seg-btn" data-c="rec" onclick="showTrend('rec')">Recovery</button>
     </div>
     <div class="card chart-wrap trend-pane" id="paneMaf"><div class="sub" style="margin-bottom:6px;">Pace you hold at HR 140 — higher is fitter</div><div id="trMaf"></div><div class="cap" id="trMafCap"></div></div>
     <div class="card chart-wrap trend-pane" id="paneSS" style="display:none"><div class="sub" style="margin-bottom:6px;">Your HR at your usual pace — lower is fitter</div><div id="trSS"></div><div class="cap" id="trSSCap"></div></div>
     <div class="card chart-wrap trend-pane" id="paneVol" style="display:none"><div class="sub" style="margin-bottom:6px;">Aerobic + sweet-spot minutes per week</div><div id="trVol"></div><div class="cap" id="trVolCap"></div></div>
+    <div class="card chart-wrap trend-pane" id="paneRec" style="display:none"><div class="sub" style="margin-bottom:6px;">HR drift across each run — under 5% is well-recovered</div><div id="trRec"></div><div class="cap" id="trRecCap"></div></div>
     <h2>Activity</h2>
     <div id="histList"></div>
   </section>
@@ -1352,7 +1354,8 @@ function renderDetail(r){
   if(r.overSec!=null) s.push(kv("Over "+r.ceiling+" bpm", (r.overSec/60).toFixed(1)+" min"+((r.derived&&r.derived.overPct!=null)?(" ("+r.derived.overPct+"%)"):"")));
   if(r.mafSpeed!=null) s.push(kv("MAF speed", r.mafSpeed+" "+(r.units||"mph")));
   if(r.rpe!=null) s.push(kv("RPE", r.rpe+"/10"));
-  if(r.rr&&r.rr.length) s.push(kv("HRV samples (R-R)", r.rr.length));
+  var dc=decoupling(r); if(dc!=null) s.push(kv("Aerobic decoupling", dc+"%"+(dc<=5?" ✓":"")));
+  var hv=rmssd(r); if(hv!=null) s.push(kv("HRV (rMSSD, in-run)", hv+" ms"));
   if(r.notes) s.push(kv("Notes", r.notes));
   $("detailStats").innerHTML=s.join("")||'<div class="empty">No stats.</div>';
   var ps=(r.perStage||[]).map(function(p){
@@ -1484,7 +1487,18 @@ function weekStreak(){ if(!SESSIONS.length) return 0; var w={}; SESSIONS.forEach
 function recordsStrip(){ var el=$("recStrip"); if(!el) return; var bm=bestMaf(), lr=longestRun(), st=weekStreak();
   function r(v,l){ return '<div class="rec"><div class="rv">'+v+'</div><div class="rl">'+l+'</div></div>'; }
   el.innerHTML=r("🔥 "+st, "week streak")+r(bm!=null?bm:"—", bm!=null?"best mph @140":"best pace")+r(lr?fmt(lr):"—", "longest run"); }
-function showTrend(c){ [["maf","paneMaf"],["ss","paneSS"],["vol","paneVol"]].forEach(function(p){ var e=$(p[1]); if(e) e.style.display=(p[0]===c)?"block":"none"; }); document.querySelectorAll(".seg-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-c")===c); }); }
+function showTrend(c){ [["maf","paneMaf"],["ss","paneSS"],["vol","paneVol"],["rec","paneRec"]].forEach(function(p){ var e=$(p[1]); if(e) e.style.display=(p[0]===c)?"block":"none"; }); document.querySelectorAll(".seg-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-c")===c); }); }
+/* Recovery: aerobic decoupling (HR:pace drift, first half vs second) + in-run HRV (rMSSD) */
+function halfRatio(rec, lo, hi){ var hr=rec.hr||[], sh=0,ss=0,n=0; for(var i=0;i<hr.length;i++){ var t=hr[i][0]; if(t>=lo&&t<hi){ var sp=speedAt(rec,t); if(sp>0){ sh+=hr[i][1]; ss+=sp; n++; } } } return n>=30? {ratio:(sh/n)/(ss/n)}:null; }
+function decoupling(rec){ var hr=rec.hr||[]; if(hr.length<80) return null; var t0=hr[0][0], t1=hr[hr.length-1][0]; if(t1-t0<300) return null; var mid=(t0+t1)/2; var a=halfRatio(rec,t0,mid), b=halfRatio(rec,mid,t1+1); if(!a||!b) return null; return Math.round((b.ratio-a.ratio)/a.ratio*1000)/10; }
+function rmssd(rec){ var rr=rec.rr; if(!rr||rr.length<20) return null; var s=0,n=0; for(var i=1;i<rr.length;i++){ var d=rr[i][1]-rr[i-1][1]; s+=d*d; n++; } return n? Math.round(Math.sqrt(s/n)):null; }
+function decoupCaption(p){
+  if(!p.length) return "Aerobic decoupling = how much your heart drifts up late in a run at the same pace. Under 5% means you held aerobic and were well-recovered. Log a steady 10-min+ run to see it.";
+  var v=p[p.length-1].v;
+  if(v<=5) return "Last run drifted "+v+"% — under the 5% line: you stayed aerobic and recovered well. 👍";
+  if(v<=8) return "Last run drifted "+v+"% — a touch high. Could be heat, a hard day, or slightly under-recovered.";
+  return "Last run drifted "+v+"% — HR climbed late. Ease the pace or take an extra easy day before the next run.";
+}
 function runInsight(rec){
   if(rec.avg==null) return "No heart-rate recorded for this run.";
   var d=rec.derived||{}, z=d.zoneSec, overMin=(rec.overSec||0)/60, cap=rec.ceiling||PROFILE.ceiling;
@@ -1509,6 +1523,9 @@ function renderTrends(){
   var vol=weeklyVolume();
   barTrend($("trVol"), vol, {color:"var(--z-aerobic)", goal:150, unit:""});
   if($("trVolCap")) $("trVolCap").textContent=volCaption(vol);
+  var decPts=SESSIONS.map(function(s){return {t:new Date(s.date).getTime(), v:decoupling(s)};}).filter(function(p){return p.v!=null;}).sort(function(a,b){return a.t-b.t;});
+  lineTrend($("trRec"), decPts, {color:"var(--z-easy)", unit:"%", goal:5, fill:"rgba(79,163,255,.18)", empty:"Recovery shows once you've logged a steady run of 10 min or more."});
+  if($("trRecCap")) $("trRecCap").textContent=decoupCaption(decPts);
 }
 function mafCaption(p){
   if(p.length<2) return "Run the Monthly MAF Test now and then; each one plots here so you can watch your pace at 140 climb.";
