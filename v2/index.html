@@ -204,6 +204,14 @@
   .stagecard.walk{ background:radial-gradient(130% 120% at 50% 0%, rgba(79,163,255,.10), transparent 72%), var(--panel); }
   .stagecard.jog{ background:radial-gradient(130% 120% at 50% 0%, rgba(52,199,89,.10), transparent 72%), var(--panel); }
   .stagecard.hold{ background:radial-gradient(130% 120% at 50% 0%, rgba(255,176,46,.11), transparent 72%), var(--panel); }
+
+  /* ===== v2.3: circular HR zone gauge — run-screen centerpiece ===== */
+  .gauge{ position:relative; width:min(72vw,288px); aspect-ratio:1; margin:6px auto 2px; transition:filter .3s ease; }
+  .gauge svg{ width:100%; height:100%; overflow:visible; display:block; }
+  .gauge-center{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; pointer-events:none; padding:0 14%; }
+  .gauge-center .hrbig{ font-size:62px; line-height:.9; }
+  .gauge-center .hrcap{ font-size:12px; margin-top:3px; }
+  .gauge-center .verdict{ font-size:15px; margin-top:6px; min-height:18px; }
 </style>
 </head>
 <body>
@@ -255,17 +263,20 @@
 
     <div class="stagecard walk" id="stageCard">
       <div class="stagename" id="stageName">—</div>
-      <div class="hrhero"><div class="hrbig bpm" id="mBpm">––</div><div class="hrcap">bpm · keep ≤ <span id="mCeil">140</span></div></div>
-      <div class="verdict" id="verdict"></div>
-      <div class="zonemeter">
-        <div class="zm-track">
-          <div class="zm-seg" style="flex:15;background:rgba(79,163,255,.40)"></div>
-          <div class="zm-seg" style="flex:5;background:rgba(52,199,89,.55)"></div>
-          <div class="zm-seg" style="flex:5;background:rgba(255,176,46,.60)"></div>
-          <div class="zm-seg" style="flex:6;background:rgba(255,90,82,.55)"></div>
-          <div class="zm-marker" id="zmMarker" style="display:none;"></div>
+      <div class="gauge" id="gauge">
+        <svg viewBox="0 0 240 240">
+          <path id="gTrack" fill="none" stroke="var(--surface3)" stroke-width="16" stroke-linecap="round"></path>
+          <path id="gEasy" fill="none" stroke-width="16" stroke-linecap="round"></path>
+          <path id="gAero" fill="none" stroke-width="16"></path>
+          <path id="gSweet" fill="none" stroke-width="16"></path>
+          <path id="gOver" fill="none" stroke-width="16" stroke-linecap="round"></path>
+          <circle id="gMarker" r="9" fill="#fff" stroke="#0c0e12" stroke-width="3" style="display:none"></circle>
+        </svg>
+        <div class="gauge-center">
+          <div class="hrbig bpm" id="mBpm">––</div>
+          <div class="hrcap">bpm · ≤ <span id="mCeil">140</span></div>
+          <div class="verdict" id="verdict"></div>
         </div>
-        <div class="zm-labels"><span>easy</span><span>aerobic</span><span>sweet</span><span>140 cap</span></div>
       </div>
       <div class="cue" id="cue">—</div>
       <div class="adjrow">
@@ -629,6 +640,7 @@ function loadStage(){
   $("nextLine").textContent = n ? `Up next: ${n.name} · ${n.speed===null?"hold":n.speed.toFixed(1)+" "+PROFILE.units} · ${n.incline}%` : "Up next: finish 🏁";
   updateProgress();
   reactToMood();   // switch the music pool to match this stage's intensity
+  drawGauge();     // render the HR zone gauge for this stage's ceiling
   updateRec();
 }
 function renderStageValues(){
@@ -802,6 +814,19 @@ function hrZone(bpm){
 }
 function warnBeep(){ beep(880,70); setTimeout(function(){beep(880,70);},110); }
 function mafZone(bpm){ if(bpm==null) return null; var c=activeCeiling(); if(bpm>c) return "over"; if(bpm>=c-5) return "sweet"; if(bpm>=c-10) return "aerobic"; return "easy"; }
+/* circular HR gauge: 270° sweep (gap at bottom), HR range cap-25 .. cap+6 */
+function gPolar(cx,cy,r,a){ var t=a*Math.PI/180; return [cx+r*Math.cos(t), cy+r*Math.sin(t)]; }
+function gArc(cx,cy,r,a1,a2){ var p=gPolar(cx,cy,r,a1), q=gPolar(cx,cy,r,a2); var large=(a2-a1)>180?1:0; return "M"+p[0].toFixed(1)+" "+p[1].toFixed(1)+" A"+r+" "+r+" 0 "+large+" 1 "+q[0].toFixed(1)+" "+q[1].toFixed(1); }
+function gAngle(bpm){ var c=activeCeiling(), lo=c-25, hi=c+6, f=Math.max(0,Math.min(1,(bpm-lo)/(hi-lo))); return 135+270*f; }
+function drawGauge(){
+  if(!$("gTrack")) return;
+  var cx=120,cy=120,r=96, c=activeCeiling();
+  $("gTrack").setAttribute("d", gArc(cx,cy,r,135,405));
+  $("gEasy").setAttribute("d", gArc(cx,cy,r,gAngle(c-25),gAngle(c-10))); $("gEasy").setAttribute("stroke","var(--z-easy)");
+  $("gAero").setAttribute("d", gArc(cx,cy,r,gAngle(c-10),gAngle(c-5)));  $("gAero").setAttribute("stroke","var(--z-aerobic)");
+  $("gSweet").setAttribute("d",gArc(cx,cy,r,gAngle(c-5),gAngle(c)));     $("gSweet").setAttribute("stroke","var(--z-sweet)");
+  $("gOver").setAttribute("d", gArc(cx,cy,r,gAngle(c),gAngle(c+6)));     $("gOver").setAttribute("stroke","var(--z-over)");
+}
 function zoneColor(z){ return z==="over"?"var(--z-over)":z==="sweet"?"var(--z-sweet)":z==="aerobic"?"var(--z-aerobic)":"var(--z-easy)"; }
 function verdictText(z){ return z==="over"?"SLOW DOWN":z==="sweet"?"EASE UP":z==="aerobic"?"IN RANGE":"PUSH A BIT"; }
 function setHRUI(){
@@ -813,7 +838,9 @@ function setHRUI(){
   $("homeConnect").textContent=HR.connected?"Reconnect strap":"Connect Polar H10";
   const m=$("mBpm"); m.textContent=val; m.className="hrbig bpm"; var mz=mafZone(HR.bpm); if(mz) m.classList.add("z-"+mz);
   var vd=$("verdict"); if(vd){ if(mz){ vd.textContent=verdictText(mz); vd.className="verdict z-"+mz; } else { vd.textContent=""; vd.className="verdict"; } }
-  var mk=$("zmMarker"); if(mk){ if(HR.bpm==null){ mk.style.display="none"; } else { var cc=activeCeiling(), pp=Math.max(0,Math.min(1,(HR.bpm-(cc-25))/31)); mk.style.left=(pp*100)+"%"; mk.style.background=zoneColor(mz); mk.style.display="block"; } }
+  var gm=$("gMarker");
+  if(gm){ if(HR.bpm==null){ gm.style.display="none"; if($("gauge")) $("gauge").style.filter="none"; }
+    else { var pt=gPolar(120,120,96,gAngle(HR.bpm)); gm.setAttribute("cx",pt[0].toFixed(1)); gm.setAttribute("cy",pt[1].toFixed(1)); gm.style.display="block"; if($("gauge")) $("gauge").style.filter="drop-shadow(0 0 16px "+zoneColor(mz)+")"; } }
   updateRec();
 }
 function updateRec(){
