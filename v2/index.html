@@ -246,6 +246,15 @@
   .lc-spark{ height:46px; margin:8px 0 6px; }
   .lc-meta{ font-size:13px; color:var(--ink); }
   .cap{ font-size:12px; color:var(--muted); margin-top:10px; line-height:1.45; }
+  /* records strip + segmented chart toggle + feed rows (space-conscious) */
+  .recstrip{ display:flex; gap:8px; margin-bottom:12px; }
+  .recstrip .rec{ flex:1; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px 6px; text-align:center; box-shadow:0 6px 18px rgba(0,0,0,.25); }
+  .recstrip .rv{ font-size:17px; font-weight:800; line-height:1.1; } .recstrip .rl{ font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-top:3px; }
+  .seg{ display:flex; gap:4px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r-pill); padding:4px; margin-bottom:12px; }
+  .seg-btn{ flex:1; background:transparent; border:none; border-radius:var(--r-pill); padding:9px 0; font-size:13px; font-weight:700; color:var(--muted); }
+  .seg-btn.active{ background:var(--accent); color:#fff; }
+  .feed-insight{ font-size:12px; color:var(--muted); margin-top:3px; }
+  .badge{ display:inline-block; font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px; background:rgba(255,176,46,.18); color:var(--z-sweet); margin-left:6px; }
 </style>
 </head>
 <body>
@@ -389,13 +398,16 @@
   <!-- ============ SESSIONS ============ -->
   <section id="sessions" class="screen">
     <h1>Your progress</h1>
-    <h2>Are you getting faster?</h2>
-    <div class="card chart-wrap"><div class="sub" style="margin-bottom:6px;">Pace you hold at HR 140 — higher is fitter</div><div id="trMaf"></div><div class="cap" id="trMafCap"></div></div>
-    <h2>Same-effort heart rate</h2>
-    <div class="card chart-wrap"><div class="sub" style="margin-bottom:6px;">Your HR at your usual pace — lower is fitter</div><div id="trSS"></div><div class="cap" id="trSSCap"></div></div>
-    <h2>Weekly easy minutes</h2>
-    <div class="card chart-wrap"><div class="sub" style="margin-bottom:6px;">Aerobic + sweet-spot minutes per week</div><div id="trVol"></div><div class="cap" id="trVolCap"></div></div>
-    <h2>History <span class="sub" style="text-transform:none;">(tap a run for details)</span></h2>
+    <div class="recstrip" id="recStrip"></div>
+    <div class="seg">
+      <button class="seg-btn active" data-c="maf" onclick="showTrend('maf')">Faster?</button>
+      <button class="seg-btn" data-c="ss" onclick="showTrend('ss')">Effort HR</button>
+      <button class="seg-btn" data-c="vol" onclick="showTrend('vol')">Volume</button>
+    </div>
+    <div class="card chart-wrap trend-pane" id="paneMaf"><div class="sub" style="margin-bottom:6px;">Pace you hold at HR 140 — higher is fitter</div><div id="trMaf"></div><div class="cap" id="trMafCap"></div></div>
+    <div class="card chart-wrap trend-pane" id="paneSS" style="display:none"><div class="sub" style="margin-bottom:6px;">Your HR at your usual pace — lower is fitter</div><div id="trSS"></div><div class="cap" id="trSSCap"></div></div>
+    <div class="card chart-wrap trend-pane" id="paneVol" style="display:none"><div class="sub" style="margin-bottom:6px;">Aerobic + sweet-spot minutes per week</div><div id="trVol"></div><div class="cap" id="trVolCap"></div></div>
+    <h2>Activity</h2>
     <div id="histList"></div>
   </section>
 
@@ -406,7 +418,8 @@
       <div class="pl-stage" id="detailTitle">Session</div>
       <div style="flex:0; width:58px;"></div>
     </div>
-    <div class="sub" id="detailDate" style="margin-bottom:8px;">—</div>
+    <div class="sub" id="detailDate" style="margin-bottom:6px;">—</div>
+    <div class="cap" id="detailInsight" style="color:var(--ink); margin-bottom:8px;"></div>
     <h2>Heart rate &amp; speed</h2>
     <div class="card chart-wrap"><div id="detailTrace"></div></div>
     <h2>Time in zone</h2>
@@ -1024,7 +1037,8 @@ function renderHistory(){
     if(r.mafSpeed!=null) bits.push("MAF "+r.mafSpeed+r.units);
     if(r.adjustments&&r.adjustments.length) bits.push(r.adjustments.length+" adj");
     var el=document.createElement("div"); el.className="histitem";
-    var info=document.createElement("div"); info.className="hmain"; info.innerHTML="<b>"+r.title.replace(/^\d+ · /,"")+"</b><br><small>"+dt+" · "+(bits.join(" · ")||"no HR logged")+"</small>"; info.onclick=function(){ openSession(r.id); };
+    var pr=(r.mafSpeed!=null && r.mafSpeed===bestMaf())?'<span class="badge">🏅 best pace</span>':'';
+    var info=document.createElement("div"); info.className="hmain"; info.innerHTML="<b>"+r.title.replace(/^\d+ · /,"")+"</b>"+pr+"<br><small>"+dt+" · "+(bits.join(" · ")||"no HR logged")+"</small><div class=\"feed-insight\">"+runInsight(r)+"</div>"; info.onclick=function(){ openSession(r.id); };
     var cp=document.createElement("button"); cp.className="btn-ghost"; cp.style.cssText="flex:0;padding:4px 10px;font-size:15px;"; cp.textContent="📋"; cp.title="Copy this session's log (to send to Claude)"; cp.onclick=function(){ copySavedLog(i); };
     var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.title="Delete this session"; del.onclick=function(){ deleteSession(i); };
     el.appendChild(info); el.appendChild(cp); el.appendChild(del); list.appendChild(el);
@@ -1330,6 +1344,7 @@ function openSession(id){
 function renderDetail(r){
   $("detailTitle").textContent=r.title.replace(/^\d+ · /,"");
   $("detailDate").textContent=new Date(r.date).toLocaleString();
+  if($("detailInsight")) $("detailInsight").textContent=runInsight(r);
   drawTrace(r,$("detailTrace")); drawZoneBar(r,$("detailZone"));
   var s=[];
   if(r.avg!=null) s.push(kv("Avg / Max / Min HR", r.avg+" / "+r.max+" / "+r.min));
@@ -1460,7 +1475,30 @@ function anchorSpeed(){
 function ssHR(rec, anchor){ if(anchor==null) return null; var hr=rec.hr||[], sum=0,n=0; for(var i=0;i<hr.length;i++){ var sp=speedAt(rec,hr[i][0]); if(sp!=null && Math.abs(sp-anchor)<=0.15){ sum+=hr[i][1]; n++; } } return n>=15? Math.round(sum/n):null; }
 function weekStart(d){ var x=new Date(d); var day=(x.getDay()+6)%7; x.setHours(0,0,0,0); x.setDate(x.getDate()-day); return x.getTime(); }
 function weeklyVolume(){ var m={}; SESSIONS.forEach(function(s){ var z=s.derived&&s.derived.zoneSec; if(!z) return; var k=weekStart(s.date); m[k]=(m[k]||0)+(z.aerobic+z.sweet)/60; }); return Object.keys(m).map(Number).sort(function(a,b){return a-b;}).slice(-8).map(function(k){ return {t:k, v:Math.round(m[k])}; }); }
+function bestMaf(){ var b=null; SESSIONS.forEach(function(s){ if(s.mafSpeed!=null && (b==null||s.mafSpeed>b)) b=s.mafSpeed; }); return b; }
+function longestRun(){ var b=0; SESSIONS.forEach(function(s){ if((s.durationSec||0)>b) b=s.durationSec; }); return b; }
+function weekStreak(){ if(!SESSIONS.length) return 0; var w={}; SESSIONS.forEach(function(s){ w[weekStart(s.date)]=1; }); var step=6048e5, cur=weekStart(new Date());
+  if(!w[cur] && !w[cur-step]) return 0;   // no run this week or last → streak broken
+  if(!w[cur]) cur-=step;                   // grace: this week's run may not have happened yet
+  var n=0; while(w[cur]){ n++; cur-=step; } return n; }
+function recordsStrip(){ var el=$("recStrip"); if(!el) return; var bm=bestMaf(), lr=longestRun(), st=weekStreak();
+  function r(v,l){ return '<div class="rec"><div class="rv">'+v+'</div><div class="rl">'+l+'</div></div>'; }
+  el.innerHTML=r("🔥 "+st, "week streak")+r(bm!=null?bm:"—", bm!=null?"best mph @140":"best pace")+r(lr?fmt(lr):"—", "longest run"); }
+function showTrend(c){ [["maf","paneMaf"],["ss","paneSS"],["vol","paneVol"]].forEach(function(p){ var e=$(p[1]); if(e) e.style.display=(p[0]===c)?"block":"none"; }); document.querySelectorAll(".seg-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-c")===c); }); }
+function runInsight(rec){
+  if(rec.avg==null) return "No heart-rate recorded for this run.";
+  var d=rec.derived||{}, z=d.zoneSec, overMin=(rec.overSec||0)/60, cap=rec.ceiling||PROFILE.ceiling;
+  if(rec.isTest && rec.mafSpeed!=null) return "MAF test — held "+rec.mafSpeed+" mph at the "+cap+" cap.";
+  if(overMin>3) return Math.round(overMin)+" min over "+cap+" — ease off a little earlier next time.";
+  if(z){ var tot=(z.under+z.aerobic+z.sweet+z.over)||1, inPct=Math.round((z.aerobic+z.sweet)/tot*100);
+    if(inPct>=80) return inPct+"% in the aerobic zone — textbook base work. 👍";
+    if(rec.avg<cap-12) return "Avg "+rec.avg+" bpm — pretty easy; room to nudge into 132–138.";
+    return inPct+"% in zone · avg "+rec.avg+" bpm"+(overMin>=0.5?(" · "+overMin.toFixed(1)+" min over"):", clean under the cap.");
+  }
+  return "Avg "+rec.avg+" bpm"+(overMin>=0.5?(" · "+overMin.toFixed(1)+" min over the cap."):" · clean run under the cap.");
+}
 function renderTrends(){
+  recordsStrip();
   var mafPts=SESSIONS.filter(function(s){return s.mafSpeed!=null;}).map(function(s){return {t:new Date(s.date).getTime(), v:s.mafSpeed};}).sort(function(a,b){return a.t-b.t;});
   lineTrend($("trMaf"), mafPts, {color:"var(--z-aerobic)", unit:" mph", goal:(PROFILE.goalSpeed||5), fill:"rgba(52,199,89,.20)", empty:"Log a MAF test (workout 4) to start tracking your pace at 140."});
   if($("trMafCap")) $("trMafCap").textContent=mafCaption(mafPts);
