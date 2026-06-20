@@ -255,6 +255,35 @@
   .seg-btn.active{ background:var(--accent); color:#fff; }
   .feed-insight{ font-size:12px; color:var(--muted); margin-top:3px; }
   .badge{ display:inline-block; font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px; background:rgba(255,176,46,.18); color:var(--z-sweet); margin-left:6px; }
+  /* ===== ZONE GAME ===== */
+  .ghud{ display:flex; align-items:center; gap:10px; margin-top:8px; font-variant-numeric:tabular-nums; }
+  .ghud.paused{ opacity:.4; }
+  .ghud-score{ font-size:15px; font-weight:800; color:var(--z-sweet); white-space:nowrap; }
+  .ghud-combo{ flex:1; height:8px; background:var(--panel2); border-radius:999px; overflow:hidden; }
+  .ghud-combo i{ display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--z-aerobic),var(--z-sweet)); transition:width .3s linear; }
+  .ghud-mult{ font-size:14px; font-weight:800; padding:2px 8px; border-radius:999px; background:var(--panel2); color:var(--muted); min-width:36px; text-align:center; transition:background .2s; }
+  .ghud-mult.m2{ color:#fff; background:rgba(52,199,89,.32);} .ghud-mult.m3{ color:#fff; background:rgba(255,176,46,.34);}
+  .ghud-mult.m4{ color:#fff; background:rgba(255,140,40,.42);} .ghud-mult.m5{ color:#fff; background:rgba(255,90,82,.48);}
+  .gpop{ position:absolute; top:16px; left:50%; transform:translateX(-50%) translateY(8px) scale(.9); opacity:0; transition:all .25s ease; font-size:23px; font-weight:900; letter-spacing:.02em; color:var(--z-sweet); text-shadow:0 2px 14px rgba(0,0,0,.55); pointer-events:none; z-index:5; }
+  .gpop.show{ opacity:1; transform:translateX(-50%) translateY(0) scale(1); }
+  .gpop.over{ color:var(--z-over); } .gpop.up{ color:var(--z-sweet); }
+  .gchip{ display:inline-block; font-size:10px; font-weight:800; padding:2px 7px; border-radius:999px; margin-left:6px; }
+  .grade-S{ background:rgba(123,75,255,.26); color:#b89bff;} .grade-A{ background:rgba(52,199,89,.22); color:var(--z-aerobic);}
+  .grade-B{ background:rgba(79,163,255,.2); color:var(--z-easy);} .grade-C{ background:rgba(255,176,46,.2); color:var(--z-sweet);} .grade-D{ background:rgba(255,90,82,.2); color:var(--z-over);}
+  .lvlcard{ background:linear-gradient(135deg, rgba(91,140,255,.16), rgba(123,75,255,.12)); border:1px solid var(--line); border-radius:16px; padding:12px 14px; margin-bottom:12px; }
+  .lvl-top{ display:flex; align-items:baseline; justify-content:space-between; }
+  .lvl-num{ font-size:18px; font-weight:800; } .lvl-rank{ font-size:12px; color:var(--muted); }
+  .xpbar{ height:8px; background:var(--panel2); border-radius:999px; overflow:hidden; margin-top:8px; }
+  .xpbar i{ display:block; height:100%; background:linear-gradient(90deg,#5b8cff,#7b4bff); transition:width .4s ease; }
+  .lvl-sub{ font-size:11px; color:var(--muted); margin-top:6px; line-height:1.4; }
+  .achgrid{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+  .ach{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px 12px; display:flex; gap:10px; align-items:center; }
+  .ach.locked{ opacity:.38; } .ach .ai{ font-size:22px; line-height:1; } .ach .at{ font-size:13px; font-weight:700; } .ach .ad{ font-size:11px; color:var(--muted); line-height:1.3; }
+  .payoff{ text-align:center; background:linear-gradient(135deg, rgba(91,140,255,.18), rgba(123,75,255,.14)); border:1px solid var(--line); border-radius:18px; padding:16px; margin-top:14px; }
+  .po-pts{ font-size:40px; font-weight:900; line-height:1; font-variant-numeric:tabular-nums; }
+  .po-grade{ font-size:15px; font-weight:800; margin-top:8px; }
+  .po-row{ font-size:13px; color:var(--ink); margin-top:8px; }
+  .po-ach{ font-size:12px; color:var(--z-sweet); margin-top:8px; font-weight:700; }
 </style>
 </head>
 <body>
@@ -291,6 +320,11 @@
         <div class="ms-row"><span>Heart rate</span><b class="bpm" id="homeBpm" style="font-size:18px">––</b></div>
       </div>
     </div>
+    <div class="lvlcard" id="lvlCard" style="display:none">
+      <div class="lvl-top"><span class="lvl-num" id="lvlNum">Level 1</span><span class="lvl-rank" id="lvlRank">Base Builder</span></div>
+      <div class="xpbar"><i id="lvlXp" style="width:0%"></i></div>
+      <div class="lvl-sub" id="lvlSub"></div>
+    </div>
     <div class="last-card">
       <div class="lc-head">LAST RUN</div>
       <div class="lc-spark" id="homeSpark"></div>
@@ -318,10 +352,12 @@
         <div class="pl-timewrap"><div class="pl-tlabel">stage left</div><div class="pl-time" id="timer">00:00</div></div>
       </div>
       <div class="progwrap"><div class="progbar" id="progbar"></div></div>
+      <div class="ghud" id="ghud"><span class="ghud-score">★ <b id="gScore">0</b></span><span class="ghud-combo"><i id="gComboFill"></i></span><span class="ghud-mult m1" id="gMult">1×</span></div>
       <div class="recind" id="recInd"></div>
     </div>
 
     <div class="stagecard walk" id="stageCard">
+      <div class="gpop" id="gPop"></div>
       <div class="stagename" id="stageName">—</div>
       <div class="gauge" id="gauge">
         <svg viewBox="0 0 240 240">
@@ -372,6 +408,12 @@
   <section id="summary" class="screen">
     <h1>Nice work 💪</h1>
     <div class="sub" id="sumLine">—</div>
+    <div class="payoff" id="payoff" style="display:none;">
+      <div class="po-pts"><span id="poPts">0</span> <span style="font-size:16px;color:var(--muted);">pts</span></div>
+      <div class="po-grade" id="poGrade"></div>
+      <div class="po-row" id="poXp"></div>
+      <div class="po-ach" id="poAch"></div>
+    </div>
     <div class="card" style="margin-top:14px;">
       <h2 style="margin-top:0;">Saved automatically ✓</h2>
       <div class="sub" style="margin:-4px 0 6px;">Your run is already in your history. Add details below if you like (optional), then tap Done.</div>
@@ -460,6 +502,8 @@
       <input id="importFile" type="file" accept="application/json,.json" style="display:none;" onchange="importFile(this.files)">
       <button class="btn-ghost" style="width:100%; margin-top:8px;" onclick="exportAll()">📋 Copy all data</button>
     </div>
+    <h2>Achievements</h2>
+    <div class="card"><div class="achgrid" id="achGrid"></div></div>
     <div class="grid2">
       <button class="btn-ghost" onclick="show('settings')">⚙︎ Settings</button>
       <button class="btn-ghost" onclick="show('about')">ℹ︎ How to use</button>
@@ -559,6 +603,10 @@
 
 const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0 };
 
+/* ---- ZONE GAME tuning (precision-bullseye scoring) ---- */
+const GAME = { PERFECT_WIN:2, MAX_PTS:10, SLOPE:2, EASY_FLOOR:2, COMBO_STEP:30, MULT_CAP:5, DT_CAP:5, GRADE_S:90, GRADE_A:80, GRADE_B:68, GRADE_C:55 };
+const RANKS = [[1,"Base Builder"],[3,"Aerobic Apprentice"],[5,"Zone Keeper"],[7,"Steady Strider"],[10,"MAF Master"]];
+
 /* ---- WORKOUTS (Claude updates this list) ----
    stage = { name, type:'walk'|'jog'|'hold', speed:Number|null, incline:Number, sec:Number, cue:String }
    speed:null => a "hold" stage: dial in your own speed with the steppers */
@@ -651,6 +699,7 @@ function show(s){
   if(s==="home"){ cur=null; currentMood=null; renderHome(); }
   if(s==="run") renderWorkouts();
   if(s==="sessions") renderHistory();
+  if(s==="more") renderAchievements();
 }
 
 /* ===================== TIME HELPERS ===================== */
@@ -683,9 +732,10 @@ function renderCard(w, wrap, featured){
 function newSession(w){
   return {
     title:w.title, isTest:!!w.isTest,
-    plan:w.stages.map(s=>({name:s.name,type:s.type,speed:s.speed,incline:s.incline,sec:s.sec})),
+    plan:w.stages.map(s=>({name:s.name,type:s.type,mood:s.mood,speed:s.speed,incline:s.incline,sec:s.sec})),
     actuals:w.stages.map(s=>({speed:s.speed, incline:s.incline})),
-    adjustments:[], hr:[], rr:[], endSec:0, stats:null
+    adjustments:[], hr:[], rr:[], endSec:0, stats:null,
+    live:{points:0,combo:0,mult:1,maxCombo:0,lastT:null,lastIdx:null}
   };
 }
 
@@ -713,6 +763,7 @@ function loadStage(){
   reactToMood();   // switch the music pool to match this stage's intensity
   drawGauge();     // render the HR zone gauge for this stage's ceiling
   updateRec();
+  updateGameHUD(); var gh=$("ghud"); if(gh) gh.classList.toggle("paused", cur.stages[idx].mood!=="intense");
 }
 function renderStageValues(){
   const s=cur.stages[idx], a=SESS.actuals[idx];
@@ -790,7 +841,7 @@ function flash(){ const c=$("stageCard"); c.classList.remove("flash"); void c.of
 /* ===================== STATS ===================== */
 function computeStats(){
   const cl=activeCeiling(), all=SESS.hr;
-  const per=SESS.plan.map((p,i)=>({ name:p.name, speed:p.speed, incline:p.incline, sec:p.sec, actual:SESS.actuals[i], samples:[], over:0, avg:null, max:null, min:null }));
+  const per=SESS.plan.map((p,i)=>({ name:p.name, type:p.type, mood:p.mood, speed:p.speed, incline:p.incline, sec:p.sec, actual:SESS.actuals[i], samples:[], over:0, avg:null, max:null, min:null }));
   let overTotal=0;
   for(let k=0;k<all.length;k++){
     const s=all[k]; if(per[s.idx]) per[s.idx].samples.push(s.bpm);
@@ -829,6 +880,7 @@ function endWorkout(manual){
   }
   if(suggest!=null) $("inMaf").value=suggest;
   autoSaveSession();          // fool-proof: persist immediately so a run can never be lost
+  renderSummaryGame();
   show("summary");
 }
 function exitWorkout(){
@@ -862,6 +914,7 @@ function onHRValue(e){
   HR.bpm=bpm; HR.lastSampleTs=Date.now(); HR.staleWarned=false;
   if(running && SESS){
     SESS.hr.push({ t:Math.round(elapsedSec()), bpm, idx });
+    liveScore(bpm, idx);
     var ri=i; if(flags&0x08) ri+=2;                                   // skip Energy Expended if present (bit3)
     if(flags&0x10){ for(; ri+1<v.byteLength; ri+=2){ SESS.rr.push([Math.round(elapsedSec()), Math.round(v.getUint16(ri,true)/1024*1000)]); } }  // RR intervals (bit4) → ms
     const z=hrZone(bpm);
@@ -911,7 +964,8 @@ function setHRUI(){
   var vd=$("verdict"); if(vd){ if(mz){ vd.textContent=verdictText(mz); vd.className="verdict z-"+mz; } else { vd.textContent=""; vd.className="verdict"; } }
   var gm=$("gMarker");
   if(gm){ if(HR.bpm==null){ gm.style.display="none"; if($("gauge")) $("gauge").style.filter="none"; }
-    else { var pt=gPolar(120,120,96,gAngle(HR.bpm)); gm.setAttribute("cx",pt[0].toFixed(1)); gm.setAttribute("cy",pt[1].toFixed(1)); gm.style.display="block"; if($("gauge")) $("gauge").style.filter="drop-shadow(0 0 16px "+zoneColor(mz)+")"; } }
+    else { var pt=gPolar(120,120,96,gAngle(HR.bpm)); gm.setAttribute("cx",pt[0].toFixed(1)); gm.setAttribute("cy",pt[1].toFixed(1)); gm.style.display="block";
+      if($("gauge")){ var glow=zoneColor(mz), cc=activeCeiling(), inPerf=(cur&&cur.isTest)?(HR.bpm>=cc-3&&HR.bpm<=cc):(HR.bpm<=cc&&HR.bpm>=cc-10&&Math.abs(HR.bpm-(cc-5))<=GAME.PERFECT_WIN); if(inPerf) glow="#FFD24A"; $("gauge").style.filter="drop-shadow(0 0 18px "+glow+")"; } } }
   updateRec();
 }
 function updateRec(){
@@ -1010,18 +1064,164 @@ function autoSaveSession(){            // called at end of every run — saves i
     ceiling:activeCeiling(), units:PROFILE.units, durationSec:SESS.endSec,
     avg:st?st.avg:null, max:st?st.max:null, min:st?st.min:null, overSec:st?st.overTotal:null,
     mafSpeed:numOrNull($("inMaf").value), rpe:numOrNull($("inRpe").value), notes:$("inNotes").value.trim(),
-    perStage: st? st.per.map(function(p){return {name:p.name, plan:{speed:p.speed,incline:p.incline,sec:p.sec}, actual:p.actual, avg:p.avg, max:p.max, min:p.min, over:Math.round(p.over)};}):[],
+    perStage: st? st.per.map(function(p){return {name:p.name, plan:{speed:p.speed,incline:p.incline,sec:p.sec,mood:p.mood,type:p.type}, actual:p.actual, avg:p.avg, max:p.max, min:p.min, over:Math.round(p.over)};}):[],
     adjustments: SESS.adjustments||[],
-    hr: SESS.hr.map(function(s){return [s.t,s.bpm];}),         // full per-second trace (no thinning)
+    hr: SESS.hr.map(function(s){return [s.t,s.bpm,s.idx];}),    // full per-second trace (no thinning) + stage index for exact scoring
     rr: (SESS.rr && SESS.rr.length)? SESS.rr : null,
     recordedLive: !!(SESS.hr && SESS.hr.length)
   };
   rec.derived = computeDerived(rec);
-  SESSIONS.unshift(rec); putSessionDB(rec); currentSavedId=rec.id; renderHistory();
+  rec.game = scoreRec(rec);
+  SESSIONS.unshift(rec); putSessionDB(rec); currentSavedId=rec.id;
+  lastProg = recomputeProgression();
+  renderHistory();
 }
 function commitDetails(){             // write optional notes/RPE/MAF-speed into the already-saved record
   if(!currentSavedId) return;
   for(var i=0;i<SESSIONS.length;i++){ if(SESSIONS[i].id===currentSavedId){ SESSIONS[i].mafSpeed=numOrNull($("inMaf").value); SESSIONS[i].rpe=numOrNull($("inRpe").value); SESSIONS[i].notes=$("inNotes").value.trim(); putSessionDB(SESSIONS[i]); renderHistory(); return; } }
+}
+
+/* ===================== ZONE GAME ENGINE ===================== */
+var lastProg = null;
+const ACHIEVEMENTS = [
+  {id:"first_run",   icon:"🎉", label:"First Run",     desc:"Log your first workout"},
+  {id:"first_hour",  icon:"⏱️", label:"The Long Haul", desc:"Complete a 60-min run"},
+  {id:"clean_run",   icon:"✨", label:"Clean Sheet",   desc:"A 10-min+ run, 0s over the cap"},
+  {id:"combo_max",   icon:"🔥", label:"On Fire",       desc:"Reach a 5× combo"},
+  {id:"grade_s",     icon:"🏆", label:"Flawless",      desc:"Earn an S grade"},
+  {id:"perfectionist",icon:"🎯",label:"Bullseye",      desc:"Half a run in the perfect window"},
+  {id:"points_10k",  icon:"💰", label:"Point Hoarder", desc:"Bank 10,000 lifetime points"},
+  {id:"level_5",     icon:"⭐", label:"Rising Star",    desc:"Reach level 5"},
+  {id:"streak_3",    icon:"📅", label:"Consistency",   desc:"A 3-week running streak"},
+  {id:"test_pr",     icon:"📈", label:"New Gear",      desc:"Set a MAF test record"}
+];
+function levelFromXp(xp){ return Math.floor(Math.sqrt((xp||0)/150))+1; }
+function xpForLevel(L){ return 150*(L-1)*(L-1); }
+function rankName(L){ var n=RANKS[0][1]; for(var i=0;i<RANKS.length;i++){ if(L>=RANKS[i][0]) n=RANKS[i][1]; } return n; }
+function gradeBonus(g){ return g==="S"?100:g==="A"?60:g==="B"?30:g==="C"?10:0; }
+function gradeFromScore100(s){ if(s==null) return null; return s>=GAME.GRADE_S?"S":s>=GAME.GRADE_A?"A":s>=GAME.GRADE_B?"B":s>=GAME.GRADE_C?"C":"D"; }
+function basePoints(bpm, c, isTest){
+  if(bpm>c) return 0;                                  // over the cap → no points
+  if(isTest){ if(bpm>=c-3) return GAME.MAX_PTS; return Math.max(3, GAME.MAX_PTS - GAME.SLOPE*((c-3)-bpm)); }
+  if(bpm < c-10) return GAME.EASY_FLOOR;               // easy: low flat floor
+  var d=Math.abs(bpm-(c-5));                            // bullseye = c-5
+  if(d<=GAME.PERFECT_WIN) return GAME.MAX_PTS;
+  return Math.max(3, Math.min(GAME.MAX_PTS, GAME.MAX_PTS - GAME.SLOPE*(d-GAME.PERFECT_WIN)));
+}
+function gameMoodOf(rec, i){
+  var ps=rec.perStage||[], p=ps[i];
+  if(p && p.plan && p.plan.mood) return p.plan.mood;                       // exact (new runs)
+  if(p){ var nm=(p.name||"").toLowerCase(); return /warm|cool|ease|build|break|walk/.test(nm) ? "warmup" : "intense"; } // legacy heuristic
+  return "intense";
+}
+function gameIdxAt(rec, t){ var cum=0, ps=rec.perStage||[]; for(var i=0;i<ps.length;i++){ var dur=(ps[i].plan&&ps[i].plan.sec)||0; if(t<cum+dur) return i; cum+=dur; } return ps.length-1; }
+/* authoritative, deterministic score replayed from the saved trace */
+function scoreRec(rec){
+  var c=rec.ceiling||PROFILE.ceiling, hr=rec.hr||[], isTest=!!rec.isTest;
+  var pts=0, combo=0, mult=1, maxCombo=0, perfectSec=0, bandSec=0, scoredSec=0, overScoredSec=0, approx=false, prevIdx=null;
+  for(var k=1;k<hr.length;k++){
+    var dt=hr[k][0]-hr[k-1][0]; if(dt<0)dt=0; if(dt>GAME.DT_CAP)dt=GAME.DT_CAP;
+    var bpm=hr[k][1];
+    var idx; if(hr[k].length>2 && hr[k][2]!=null) idx=hr[k][2]; else { idx=gameIdxAt(rec,hr[k][0]); approx=true; }
+    var p=rec.perStage&&rec.perStage[idx]; if(!(p&&p.plan&&p.plan.mood)) approx=true;
+    if(gameMoodOf(rec,idx)!=="intense"){ prevIdx=idx; continue; }            // unscored rest
+    if(prevIdx!==idx){ combo=0; mult=1; }                                     // new intense stage resets combo
+    prevIdx=idx; scoredSec+=dt;
+    var over=bpm>c, inBand=(bpm<=c && bpm>=c-10);
+    if(over) overScoredSec+=dt; if(inBand) bandSec+=dt;
+    var pw = isTest ? (bpm>=c-3 && bpm<=c) : (inBand && Math.abs(bpm-(c-5))<=GAME.PERFECT_WIN);
+    if(pw) perfectSec+=dt;
+    if(over) combo=0; else if(inBand){ combo+=dt; if(combo>maxCombo) maxCombo=combo; }   // easy → freeze
+    mult=Math.min(GAME.MULT_CAP, 1+Math.floor(combo/GAME.COMBO_STEP));
+    pts+=Math.round(basePoints(bpm,c,isTest)*mult*dt);
+  }
+  var score100 = scoredSec>0 ? Math.max(0, Math.min(100, Math.round(100*bandSec/scoredSec - 60*overScoredSec/scoredSec))) : null;
+  var grade = gradeFromScore100(score100);
+  return { points:pts, grade:grade, score100:score100, maxCombo:Math.round(maxCombo), perfectSec:Math.round(perfectSec),
+           bandSec:Math.round(bandSec), scoredSec:Math.round(scoredSec), overScoredSec:Math.round(overScoredSec),
+           xp: Math.round(pts/100)+gradeBonus(grade), approx:approx };
+}
+function backfillGame(){ var n=0; for(var i=0;i<SESSIONS.length;i++){ if(!SESSIONS[i].game){ SESSIONS[i].game=scoreRec(SESSIONS[i]); putSessionDB(SESSIONS[i]); n++; } } return n; }
+function recomputeProgression(){
+  if(!PROFILE.game) PROFILE.game={version:1, xp:0, level:1, bestPoints:0, achievements:{}};
+  var g=PROFILE.game; if(!g.achievements) g.achievements={};
+  var prevLevel=g.level||1, prevBest=g.bestPoints||0;
+  var totalXp=0, best=0;
+  SESSIONS.forEach(function(s){ if(s.game){ totalXp+=s.game.xp||0; if((s.game.points||0)>best) best=s.game.points; } });
+  g.xp=totalXp; g.bestPoints=best; g.level=levelFromXp(totalXp);
+  // achievement first-unlock dates (earliest qualifying session, so import stays honest)
+  var asc=SESSIONS.slice().sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
+  function sum(arr,f){ return arr.reduce(function(a,s){ return a+(f(s)||0); },0); }
+  function fdw(fn){ for(var i=0;i<asc.length;i++){ if(fn(asc.slice(0,i+1), asc[i])) return asc[i].date; } return null; }
+  var qd={};
+  qd.first_run    = asc.length ? asc[0].date : null;
+  qd.first_hour   = fdw(function(p,s){ return (s.durationSec||0)>=3600; });
+  qd.clean_run    = fdw(function(p,s){ return !s.isTest && s.game && s.game.overScoredSec===0 && s.game.scoredSec>=600; });
+  qd.combo_max    = fdw(function(p,s){ return s.game && s.game.maxCombo>=120; });
+  qd.grade_s      = fdw(function(p,s){ return !s.isTest && s.game && s.game.grade==="S"; });
+  qd.perfectionist= fdw(function(p,s){ return s.game && s.game.scoredSec>=600 && (s.game.perfectSec/s.game.scoredSec)>=0.5; });
+  qd.points_10k   = fdw(function(p){ return sum(p,function(s){ return s.game&&s.game.points; })>=10000; });
+  qd.level_5      = fdw(function(p){ return levelFromXp(sum(p,function(s){ return s.game&&s.game.xp; }))>=5; });
+  qd.streak_3     = (weekStreak()>=3) ? (asc.length?asc[asc.length-1].date:new Date().toISOString()) : null;
+  qd.test_pr      = fdw(function(p,s){ if(!(s.isTest&&s.derived&&s.derived.mafTestSpeed!=null)) return false; var b=0; p.forEach(function(x){ if(x.derived&&x.derived.mafTestSpeed>b) b=x.derived.mafTestSpeed; }); return s.derived.mafTestSpeed>=b; });
+  var newUnlocks=[];
+  ACHIEVEMENTS.forEach(function(a){ if(g.achievements[a.id]) return; if(qd[a.id]){ g.achievements[a.id]={firstDate:qd[a.id]}; newUnlocks.push(a.id); } });
+  saveProfile();
+  return { level:g.level, leveledUp:g.level>prevLevel, xp:totalXp, bestPoints:best, newBest:best>prevBest, newUnlocks:newUnlocks };
+}
+/* ---- live in-run HUD (cosmetic estimate; saved score is scoreRec) ---- */
+function liveScore(bpm, stageIdx){
+  if(!SESS||!SESS.live||bpm==null) return;
+  var L=SESS.live, c=activeCeiling(), isTest=!!(cur&&cur.isTest);
+  var mood = (cur&&cur.stages[stageIdx]) ? cur.stages[stageIdx].mood : null;
+  var t=Math.round(elapsedSec()), dt=(L.lastT==null)?0:Math.min(GAME.DT_CAP, t-L.lastT); L.lastT=t;
+  if(mood!=="intense"){ L.lastIdx=stageIdx; return; }
+  if(L.lastIdx!==stageIdx){ L.combo=0; L.mult=1; } L.lastIdx=stageIdx;
+  var over=bpm>c, inBand=(bpm<=c && bpm>=c-10), prevMult=L.mult, comboWas=L.combo;
+  if(over) L.combo=0; else if(inBand){ L.combo+=dt; if(L.combo>L.maxCombo) L.maxCombo=L.combo; }
+  L.mult=Math.min(GAME.MULT_CAP, 1+Math.floor(L.combo/GAME.COMBO_STEP));
+  L.points += Math.round(basePoints(bpm,c,isTest)*L.mult*dt);
+  updateGameHUD();
+  if(over && comboWas>0) gamePopup("COMBO LOST","over");
+  else if(L.mult>prevMult) gamePopup(L.mult+"× COMBO!","up");
+}
+function updateGameHUD(){
+  if(!SESS||!SESS.live) return; var L=SESS.live;
+  var ps=$("gScore"); if(ps) ps.textContent=L.points.toLocaleString();
+  var mb=$("gMult"); if(mb){ mb.textContent=L.mult+"×"; mb.className="ghud-mult m"+L.mult; }
+  var cf=$("gComboFill"); if(cf){ var frac=(L.mult>=GAME.MULT_CAP)?1:(L.combo%GAME.COMBO_STEP)/GAME.COMBO_STEP; cf.style.width=Math.round(frac*100)+"%"; }
+}
+function gamePopup(text, kind){
+  var el=$("gPop"); if(!el) return;
+  el.textContent=text; el.className="gpop "+(kind||""); void el.offsetWidth; el.classList.add("show");
+  clearTimeout(el._t); el._t=setTimeout(function(){ el.classList.remove("show"); }, 1100);
+}
+function renderLevelCard(){
+  var el=$("lvlCard"); if(!el) return; var g=PROFILE.game;
+  if(g && g.xp>0){ el.style.display="block"; var L=g.level||1, lo=xpForLevel(L), hi=xpForLevel(L+1), f=Math.max(0,Math.min(1,(g.xp-lo)/(hi-lo)));
+    $("lvlNum").textContent="Level "+L; $("lvlRank").textContent=rankName(L); $("lvlXp").style.width=Math.round(f*100)+"%";
+    $("lvlSub").textContent=g.xp.toLocaleString()+" XP · "+Math.max(0,hi-g.xp).toLocaleString()+" to Level "+(L+1)+" · best run "+(g.bestPoints||0).toLocaleString()+" pts";
+  } else el.style.display="none";
+}
+function renderAchievements(){
+  var el=$("achGrid"); if(!el) return; var g=PROFILE.game||{achievements:{}};
+  el.innerHTML=ACHIEVEMENTS.map(function(a){ var un=g.achievements&&g.achievements[a.id];
+    return '<div class="ach'+(un?'':' locked')+'"><span class="ai">'+a.icon+'</span><div><div class="at">'+a.label+'</div><div class="ad">'+a.desc+'</div></div></div>'; }).join("");
+}
+function renderSummaryGame(){
+  var el=$("payoff"); if(!el) return;
+  var rec=null; for(var i=0;i<SESSIONS.length;i++){ if(SESSIONS[i].id===currentSavedId){ rec=SESSIONS[i]; break; } }
+  if(!rec||!rec.game){ el.style.display="none"; return; }
+  el.style.display="block";
+  $("poPts").textContent=(rec.game.points||0).toLocaleString();
+  var gr=rec.game.grade;
+  $("poGrade").innerHTML = gr ? ('Grade <span class="gchip grade-'+gr+'">'+gr+'</span>'+(rec.game.maxCombo?(' · best combo '+Math.round(rec.game.maxCombo)+'s'):'')) : '';
+  var lp=lastProg||{}, line="+"+(rec.game.xp||0).toLocaleString()+" XP";
+  if(lp.leveledUp) line+=" · ⬆️ Level "+lp.level+" — "+rankName(lp.level)+"!";
+  if(lp.newBest && SESSIONS.length>1) line+=" · 🏆 NEW BEST!";
+  $("poXp").textContent=line;
+  var nu=lp.newUnlocks||[];
+  $("poAch").textContent = nu.length ? ("Unlocked: "+nu.map(function(id){ var a=ACHIEVEMENTS.find(function(x){return x.id===id;}); return a?(a.icon+" "+a.label):id; }).join(", ")) : "";
 }
 function saveSession(){ commitDetails(); toast("Saved ✓"); show("home"); }   // summary "Done" button
 function deleteSession(i){
@@ -1041,7 +1241,8 @@ function renderHistory(){
     if(r.adjustments&&r.adjustments.length) bits.push(r.adjustments.length+" adj");
     var el=document.createElement("div"); el.className="histitem";
     var pr=(r.mafSpeed!=null && r.mafSpeed===bestMaf())?'<span class="badge">🏅 best pace</span>':'';
-    var info=document.createElement("div"); info.className="hmain"; info.innerHTML="<b>"+r.title.replace(/^\d+ · /,"")+"</b>"+pr+"<br><small>"+dt+" · "+(bits.join(" · ")||"no HR logged")+"</small><div class=\"feed-insight\">"+runInsight(r)+"</div>"; info.onclick=function(){ openSession(r.id); };
+    var gc=(r.game&&r.game.grade)?'<span class="gchip grade-'+r.game.grade+'">'+r.game.grade+(r.game.approx?'~':'')+'</span>':'';
+    var info=document.createElement("div"); info.className="hmain"; info.innerHTML="<b>"+r.title.replace(/^\d+ · /,"")+"</b>"+gc+pr+"<br><small>"+dt+" · "+(bits.join(" · ")||"no HR logged")+"</small><div class=\"feed-insight\">"+runInsight(r)+"</div>"; info.onclick=function(){ openSession(r.id); };
     var cp=document.createElement("button"); cp.className="btn-ghost"; cp.style.cssText="flex:0;padding:4px 10px;font-size:15px;"; cp.textContent="📋"; cp.title="Copy this session's log (to send to Claude)"; cp.onclick=function(){ copySavedLog(i); };
     var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.title="Delete this session"; del.onclick=function(){ deleteSession(i); };
     el.appendChild(info); el.appendChild(cp); el.appendChild(del); list.appendChild(el);
@@ -1295,9 +1496,9 @@ function initMusic(){
   openDB()
     .then(function(){ return migrateSessions(); })
     .then(function(){ return loadSessionsFromDB(); })
-    .then(function(){ renderHistory(); renderHome(); return loadPlaylist(); })
+    .then(function(){ backfillGame(); recomputeProgression(); renderHistory(); renderHome(); return loadPlaylist(); })
     .then(function(){ renderMusic(); })
-    .catch(function(){ renderHistory(); renderHome(); renderMusic(); });
+    .catch(function(){ try{ backfillGame(); recomputeProgression(); }catch(e){} renderHistory(); renderHome(); renderMusic(); });
   if(navigator.storage && navigator.storage.persist){ try{ navigator.storage.persist(); }catch(e){} }   // request durable storage
 }
 
@@ -1323,6 +1524,7 @@ function renderHome(){
       drawSpark(last,$("homeSpark"));
     } else { $("homeLast").textContent="No runs yet — your first one will show here."; if($("homeSpark")) $("homeSpark").innerHTML=""; }
   }
+  renderLevelCard();
   setHRUI();
 }
 function drawSpark(rec, el){
@@ -1357,6 +1559,7 @@ function renderDetail(r){
   if(r.overSec!=null) s.push(kv("Over "+r.ceiling+" bpm", (r.overSec/60).toFixed(1)+" min"+((r.derived&&r.derived.overPct!=null)?(" ("+r.derived.overPct+"%)"):"")));
   if(r.mafSpeed!=null) s.push(kv("MAF speed", r.mafSpeed+" "+(r.units||"mph")));
   if(r.rpe!=null) s.push(kv("RPE", r.rpe+"/10"));
+  if(r.game){ if(r.game.grade) s.push(kv("Zone grade", r.game.grade+(r.game.approx?" (est)":""))); s.push(kv("Score", (r.game.points||0).toLocaleString()+" pts")); if(r.game.maxCombo) s.push(kv("Best combo", Math.round(r.game.maxCombo)+"s")); }
   var dc=decoupling(r); if(dc!=null) s.push(kv("Aerobic decoupling", dc+"%"+(dc<=5?" ✓":"")));
   var hv=rmssd(r); if(hv!=null) s.push(kv("HRV (rMSSD, in-run)", hv+" ms"));
   if(r.notes) s.push(kv("Notes", r.notes));
@@ -1514,7 +1717,8 @@ function weekStreak(){ if(!SESSIONS.length) return 0; var w={}; SESSIONS.forEach
   var n=0; while(w[cur]){ n++; cur-=step; } return n; }
 function recordsStrip(){ var el=$("recStrip"); if(!el) return; var bm=bestMaf(), lr=longestRun(), st=weekStreak();
   function r(v,l){ return '<div class="rec"><div class="rv">'+v+'</div><div class="rl">'+l+'</div></div>'; }
-  el.innerHTML=r("🔥 "+st, "week streak")+r(bm!=null?bm:"—", bm!=null?"best mph @140":"best pace")+r(lr?fmt(lr):"—", "longest run"); }
+  var bs=(PROFILE.game&&PROFILE.game.bestPoints)?PROFILE.game.bestPoints:0;
+  el.innerHTML=r("🔥 "+st, "week streak")+r(bs?bs.toLocaleString():"—", "best score")+r(bm!=null?bm:"—", bm!=null?"best mph":"best pace")+r(lr?fmt(lr):"—", "longest run"); }
 function showTrend(c){ [["maf","paneMaf"],["ss","paneSS"],["vol","paneVol"],["rec","paneRec"]].forEach(function(p){ var e=$(p[1]); if(e) e.style.display=(p[0]===c)?"block":"none"; }); document.querySelectorAll(".seg-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-c")===c); }); }
 /* Recovery: aerobic decoupling (HR:pace drift, first half vs second) + in-run HRV (rMSSD) */
 function halfRatio(rec, lo, hi){ var hr=rec.hr||[], sh=0,ss=0,n=0; for(var i=0;i<hr.length;i++){ var t=hr[i][0]; if(t>=lo&&t<hi){ var sp=speedAt(rec,t); if(sp>0){ sh+=hr[i][1]; ss+=sp; n++; } } } return n>=30? {ratio:(sh/n)/(ss/n)}:null; }
