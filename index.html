@@ -564,11 +564,11 @@ const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:
    speed:null => a "hold" stage: dial in your own speed with the steppers */
 const WORKOUTS = [
   {
-    id:"today", title:"Steady Base — 42 min", tag:"Tomorrow's plan (Jun 16) · settle into HR 132–138", isTest:false,
+    id:"today", title:"Steady Base — 40 min", tag:"Today's plan (Jun 20) · hold HR 132–138, chase the heart rate not the pace", isTest:false,
     stages:[
       {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk. Let your heart rate settle into the low 100s."},
       {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.8, incline:1, sec:240, cue:"Easy shuffle to wake the legs up."},
-      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.2, incline:1, sec:1680, cue:"Hold HR 132–138. If you're under 132 and it feels easy, nudge up to 4.3. Over 140 → drop the speed."},
+      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.1, incline:1, sec:1560, cue:"Start at 4.1 and hold HR 132–138. Under 132 and it feels easy → nudge to 4.2. The moment you touch 140, drop to 3.9. Chase the heart rate, not the pace."},
       {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish. Nice work."}
     ]
   },
