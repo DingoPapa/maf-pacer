@@ -187,9 +187,9 @@
   .stat,.hero,.stagecard{ border-radius:var(--r-md); }
   .statgrid{ gap:var(--s3); }
   /* one legible run timer (stage countdown), top-right, deliberate size */
-  .pl-timewrap{ flex:0; text-align:right; min-width:78px; }
+  .pl-timewrap{ flex:0 0 auto; text-align:right; min-width:0; padding-right:2px; }
   .pl-tlabel{ font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); line-height:1.2; }
-  .pl-time{ font-size:36px; font-weight:700; color:var(--ink); line-height:1; font-variant-numeric:tabular-nums; }
+  .pl-time{ font-size:32px; font-weight:700; color:var(--ink); line-height:1.08; white-space:nowrap; font-variant-numeric:tabular-nums; }
   .pl-stage{ font-size:13px; }
   /* HR hero — zone-colored number + plain-language verdict (number, verdict, marker always agree) */
   .hrbig{ font-size:84px; }
