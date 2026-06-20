@@ -564,12 +564,13 @@ const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:
    speed:null => a "hold" stage: dial in your own speed with the steppers */
 const WORKOUTS = [
   {
-    id:"today", title:"Steady Base — 60 min", tag:"Today's plan (Jun 20) · hold HR 132–138, let pace ease as HR drifts", isTest:false,
+    id:"today", title:"Jog · Walk · Jog — 60 min", tag:"Today's plan (Jun 20) · two 20-min jogs, 10-min walk reset between", isTest:false,
     stages:[
-      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk. Let your heart rate settle into the low 100s."},
-      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.8, incline:1, sec:240, cue:"Easy shuffle to wake the legs up."},
-      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.1, incline:1, sec:2760, cue:"Start at 4.1 and hold HR 132–138. Over a full hour your HR WILL drift up — that's normal. As it climbs toward 140, drop the speed (4.0, then 3.9) to hold the band. Chase the heart rate, not the pace."},
-      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish. Great work — that's a solid hour."}
+      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300,  cue:"Easy walk. Let your heart rate settle into the low 100s."},
+      {name:"Jog block 1",   type:"jog",  mood:"intense",  speed:4.1, incline:1, sec:1200, cue:"Start at 4.1 and hold HR 132–138. If you touch 140, drop the speed. Chase the heart rate, not the pace."},
+      {name:"Walk break",    type:"walk", mood:"cooldown", speed:3.0, incline:1, sec:600,  cue:"Recovery walk — let your HR drop back toward the 110s. Catch your breath, sip water. Don't rush it."},
+      {name:"Jog block 2",   type:"jog",  mood:"intense",  speed:4.1, incline:1, sec:1200, cue:"Second block, same as the first: hold HR 132–138. You're warm now, so you may need a touch less speed. Touch 140 → drop the pace."},
+      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300,  cue:"Easy walk to finish. Great work."}
     ]
   },
   {
