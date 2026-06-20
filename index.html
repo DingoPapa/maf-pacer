@@ -604,7 +604,8 @@
 const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0 };
 
 /* ---- ZONE GAME tuning (precision-bullseye scoring) ---- */
-const GAME = { PERFECT_WIN:2, MAX_PTS:10, SLOPE:2, EASY_FLOOR:2, COMBO_STEP:30, MULT_CAP:5, DT_CAP:5, GRADE_S:90, GRADE_A:80, GRADE_B:68, GRADE_C:55 };
+const GAME = { PLATEAU_LO:8, PLATEAU_HI:2, MAX_PTS:10, SLOPE:1, EASY_FLOOR:4, OVER_MIN:7, COMBO_STEP:30, MULT_CAP:5, DT_CAP:5, GRADE_S:90, GRADE_A:80, GRADE_B:68, GRADE_C:55 };
+const SCORE_VERSION = 2;
 const RANKS = [[1,"Base Builder"],[3,"Aerobic Apprentice"],[5,"Zone Keeper"],[7,"Steady Strider"],[10,"MAF Master"]];
 
 /* ---- WORKOUTS (Claude updates this list) ----
@@ -965,7 +966,7 @@ function setHRUI(){
   var gm=$("gMarker");
   if(gm){ if(HR.bpm==null){ gm.style.display="none"; if($("gauge")) $("gauge").style.filter="none"; }
     else { var pt=gPolar(120,120,96,gAngle(HR.bpm)); gm.setAttribute("cx",pt[0].toFixed(1)); gm.setAttribute("cy",pt[1].toFixed(1)); gm.style.display="block";
-      if($("gauge")){ var glow=zoneColor(mz), cc=activeCeiling(), inPerf=(cur&&cur.isTest)?(HR.bpm>=cc-3&&HR.bpm<=cc):(HR.bpm<=cc&&HR.bpm>=cc-10&&Math.abs(HR.bpm-(cc-5))<=GAME.PERFECT_WIN); if(inPerf) glow="#FFD24A"; $("gauge").style.filter="drop-shadow(0 0 18px "+glow+")"; } } }
+      if($("gauge")){ var glow=zoneColor(mz), cc=activeCeiling(), inPerf=(cur&&cur.isTest)?(HR.bpm>=cc-4&&HR.bpm<=cc):(HR.bpm>=cc-GAME.PLATEAU_LO&&HR.bpm<=cc-GAME.PLATEAU_HI); if(inPerf) glow="#FFD24A"; $("gauge").style.filter="drop-shadow(0 0 18px "+glow+")"; } } }
   updateRec();
 }
 function updateRec(){
@@ -1101,12 +1102,12 @@ function rankName(L){ var n=RANKS[0][1]; for(var i=0;i<RANKS.length;i++){ if(L>=
 function gradeBonus(g){ return g==="S"?100:g==="A"?60:g==="B"?30:g==="C"?10:0; }
 function gradeFromScore100(s){ if(s==null) return null; return s>=GAME.GRADE_S?"S":s>=GAME.GRADE_A?"A":s>=GAME.GRADE_B?"B":s>=GAME.GRADE_C?"C":"D"; }
 function basePoints(bpm, c, isTest){
-  if(bpm>c) return 0;                                  // over the cap → no points
-  if(isTest){ if(bpm>=c-3) return GAME.MAX_PTS; return Math.max(3, GAME.MAX_PTS - GAME.SLOPE*((c-3)-bpm)); }
-  if(bpm < c-10) return GAME.EASY_FLOOR;               // easy: low flat floor
-  var d=Math.abs(bpm-(c-5));                            // bullseye = c-5
-  if(d<=GAME.PERFECT_WIN) return GAME.MAX_PTS;
-  return Math.max(3, Math.min(GAME.MAX_PTS, GAME.MAX_PTS - GAME.SLOPE*(d-GAME.PERFECT_WIN)));
+  if(bpm>c) return 0;                                  // over the cap → no points (combo also breaks)
+  if(isTest){ if(bpm>=c-4) return GAME.MAX_PTS; return Math.max(4, GAME.MAX_PTS - GAME.SLOPE*((c-4)-bpm)); }
+  var lo=c-GAME.PLATEAU_LO, hi=c-GAME.PLATEAU_HI;      // forgiving bullseye RANGE (132–138 @ cap 140)
+  if(bpm>=lo && bpm<=hi) return GAME.MAX_PTS;          // anywhere in the range = full points (wobble-proof)
+  if(bpm>hi) return Math.max(GAME.OVER_MIN, GAME.MAX_PTS - GAME.SLOPE*(bpm-hi));   // 139–140: gentle dip
+  return Math.max(GAME.EASY_FLOOR, GAME.MAX_PTS - GAME.SLOPE*(lo-bpm));            // below range: gentle taper to floor
 }
 function gameMoodOf(rec, i){
   var ps=rec.perStage||[], p=ps[i];
@@ -1129,7 +1130,7 @@ function scoreRec(rec){
     prevIdx=idx; scoredSec+=dt;
     var over=bpm>c, inBand=(bpm<=c && bpm>=c-10);
     if(over) overScoredSec+=dt; if(inBand) bandSec+=dt;
-    var pw = isTest ? (bpm>=c-3 && bpm<=c) : (inBand && Math.abs(bpm-(c-5))<=GAME.PERFECT_WIN);
+    var pw = isTest ? (bpm>=c-4 && bpm<=c) : (bpm>=c-GAME.PLATEAU_LO && bpm<=c-GAME.PLATEAU_HI);
     if(pw) perfectSec+=dt;
     if(over) combo=0; else if(inBand){ combo+=dt; if(combo>maxCombo) maxCombo=combo; }   // easy → freeze
     mult=Math.min(GAME.MULT_CAP, 1+Math.floor(combo/GAME.COMBO_STEP));
@@ -1139,9 +1140,9 @@ function scoreRec(rec){
   var grade = gradeFromScore100(score100);
   return { points:pts, grade:grade, score100:score100, maxCombo:Math.round(maxCombo), perfectSec:Math.round(perfectSec),
            bandSec:Math.round(bandSec), scoredSec:Math.round(scoredSec), overScoredSec:Math.round(overScoredSec),
-           xp: Math.round(pts/100)+gradeBonus(grade), approx:approx };
+           xp: Math.round(pts/100)+gradeBonus(grade), approx:approx, v:SCORE_VERSION };
 }
-function backfillGame(){ var n=0; for(var i=0;i<SESSIONS.length;i++){ if(!SESSIONS[i].game){ SESSIONS[i].game=scoreRec(SESSIONS[i]); putSessionDB(SESSIONS[i]); n++; } } return n; }
+function backfillGame(){ var n=0; for(var i=0;i<SESSIONS.length;i++){ var gm=SESSIONS[i].game; if(!gm || gm.v!==SCORE_VERSION){ SESSIONS[i].game=scoreRec(SESSIONS[i]); putSessionDB(SESSIONS[i]); n++; } } return n; }
 function recomputeProgression(){
   if(!PROFILE.game) PROFILE.game={version:1, xp:0, level:1, bestPoints:0, achievements:{}};
   var g=PROFILE.game; if(!g.achievements) g.achievements={};
