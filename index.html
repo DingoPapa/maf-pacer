@@ -264,9 +264,11 @@
   .ghud-mult{ font-size:14px; font-weight:800; padding:2px 8px; border-radius:999px; background:var(--panel2); color:var(--muted); min-width:36px; text-align:center; transition:background .2s; }
   .ghud-mult.m2{ color:#fff; background:rgba(52,199,89,.32);} .ghud-mult.m3{ color:#fff; background:rgba(255,176,46,.34);}
   .ghud-mult.m4{ color:#fff; background:rgba(255,140,40,.42);} .ghud-mult.m5{ color:#fff; background:rgba(255,90,82,.48);}
-  .gpop{ position:absolute; top:16px; left:50%; transform:translateX(-50%) translateY(8px) scale(.9); opacity:0; transition:all .25s ease; font-size:23px; font-weight:900; letter-spacing:.02em; color:var(--z-sweet); text-shadow:0 2px 14px rgba(0,0,0,.55); pointer-events:none; z-index:5; }
-  .gpop.show{ opacity:1; transform:translateX(-50%) translateY(0) scale(1); }
-  .gpop.over{ color:var(--z-over); } .gpop.up{ color:var(--z-sweet); }
+  .gbanner{ height:28px; display:flex; align-items:center; justify-content:center; margin-top:6px; }
+  .gbtext{ font-size:15px; font-weight:800; letter-spacing:.02em; padding:3px 14px; border-radius:999px; opacity:0; transform:translateY(6px) scale(.92); transition:all .22s ease; white-space:nowrap; }
+  .gbtext.show{ opacity:1; transform:none; }
+  .gbtext.up{ color:var(--z-sweet); background:rgba(255,176,46,.18); }
+  .gbtext.over{ color:var(--z-over); background:rgba(255,90,82,.18); }
   .gchip{ display:inline-block; font-size:10px; font-weight:800; padding:2px 7px; border-radius:999px; margin-left:6px; }
   .grade-S{ background:rgba(123,75,255,.26); color:#b89bff;} .grade-A{ background:rgba(52,199,89,.22); color:var(--z-aerobic);}
   .grade-B{ background:rgba(79,163,255,.2); color:var(--z-easy);} .grade-C{ background:rgba(255,176,46,.2); color:var(--z-sweet);} .grade-D{ background:rgba(255,90,82,.2); color:var(--z-over);}
@@ -353,11 +355,11 @@
       </div>
       <div class="progwrap"><div class="progbar" id="progbar"></div></div>
       <div class="ghud" id="ghud"><span class="ghud-score">★ <b id="gScore">0</b></span><span class="ghud-combo"><i id="gComboFill"></i></span><span class="ghud-mult m1" id="gMult">1×</span></div>
+      <div class="gbanner"><span class="gbtext" id="gPop"></span></div>
       <div class="recind" id="recInd"></div>
     </div>
 
     <div class="stagecard walk" id="stageCard">
-      <div class="gpop" id="gPop"></div>
       <div class="stagename" id="stageName">—</div>
       <div class="gauge" id="gauge">
         <svg viewBox="0 0 240 240">
@@ -1194,8 +1196,8 @@ function updateGameHUD(){
 }
 function gamePopup(text, kind){
   var el=$("gPop"); if(!el) return;
-  el.textContent=text; el.className="gpop "+(kind||""); void el.offsetWidth; el.classList.add("show");
-  clearTimeout(el._t); el._t=setTimeout(function(){ el.classList.remove("show"); }, 1100);
+  el.textContent=text; el.className="gbtext "+(kind||""); void el.offsetWidth; el.classList.add("show");
+  clearTimeout(el._t); el._t=setTimeout(function(){ el.classList.remove("show"); }, 1200);
 }
 function renderLevelCard(){
   var el=$("lvlCard"); if(!el) return; var g=PROFILE.game;
