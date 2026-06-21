@@ -1008,7 +1008,8 @@ var RunGame = (function(){
   function drawScene(img, scroll, spacing, baseY){
     if(!img||!img.complete||!img.naturalWidth) return;
     var ar=img.naturalWidth/img.naturalHeight, dh=Math.min(100,img.naturalHeight*0.92), dw=dh*ar;
-    for(var j=-1;j<W/spacing+2;j++){ var x=((j*spacing-scroll)%(W+spacing)+W+spacing)%(W+spacing)-spacing/2; ctx.drawImage(img,Math.round(x-dw/2),Math.round(baseY-dh),Math.round(dw),Math.round(dh)); }
+    var off=((scroll%spacing)+spacing)%spacing;
+    for(var x=-off; x<W+spacing; x+=spacing){ ctx.drawImage(img,Math.round(x+spacing/2-dw/2),Math.round(baseY-dh),Math.round(dw),Math.round(dh)); }
   }
   function frame(ts){
     raf=requestAnimationFrame(frame);
@@ -1021,7 +1022,7 @@ var RunGame = (function(){
     var runningNow=(typeof running!=="undefined"&&running);
     var mult=(SESS&&SESS.live)?SESS.live.mult:1;
     var spd=((typeof recentSpeed==="number")?recentSpeed:4)/4, boost=(mult>=5?1.6:1);
-    sx0=(sx0+0.3*spd*d*boost)%W; sx1=(sx1+0.9*spd*d*boost)%W; sx2=(sx2+2.2*spd*d*boost)%W; legT+=d*(0.22+0.12*spd);
+    sx0+=0.3*spd*d*boost; sx1+=0.9*spd*d*boost; sx2+=2.2*spd*d*boost; legT+=d*(0.22+0.12*spd);   // accumulate (no %W) so every parallax layer tiles seamlessly
     if(runningNow&&moodOk){ dist+=d*0.022*(inBand?1.7:1); zsec+=d*0.0167; }
     var want=Math.floor(zsec/BSEC)%BIOMES.length;
     if(want!==bIdx){ bIdx=want; bMix=0; cpTxt="▶ "+BIOMES[bIdx].n+" · "+Math.round(dist)+" m"; cpT=2.6; }
