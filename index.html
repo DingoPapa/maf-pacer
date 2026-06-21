@@ -286,6 +286,10 @@
   .po-grade{ font-size:15px; font-weight:800; margin-top:8px; }
   .po-row{ font-size:13px; color:var(--ink); margin-top:8px; }
   .po-ach{ font-size:12px; color:var(--z-sweet); margin-top:8px; font-weight:700; }
+  /* ===== RUN GAME (side-scroller) ===== */
+  .stagecard{ position:relative; }
+  .viewtoggle{ position:absolute; top:8px; right:10px; z-index:3; background:rgba(0,0,0,.32); border:1px solid var(--line); color:var(--ink); font-size:11px; font-weight:700; padding:5px 10px; border-radius:999px; }
+  .rungame{ display:none; width:100%; height:190px; border-radius:18px; margin:6px 0 2px; image-rendering:pixelated; background:#10243f; }
 </style>
 </head>
 <body>
@@ -360,7 +364,9 @@
     </div>
 
     <div class="stagecard walk" id="stageCard">
+      <button class="viewtoggle" id="viewToggle" onclick="togglePlayerView()">📊 Gauge</button>
       <div class="stagename" id="stageName">—</div>
+      <canvas id="runCanvas" class="rungame"></canvas>
       <div class="gauge" id="gauge">
         <svg viewBox="0 0 240 240">
           <path id="gTrack" fill="none" stroke="var(--surface3)" stroke-width="16" stroke-linecap="round"></path>
@@ -603,7 +609,7 @@
    Claude edits the WORKOUTS below each cycle from your data.
    ============================================================ */
 
-const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0 };
+const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0, playerView:"game" };
 
 /* ---- ZONE GAME tuning (precision-bullseye scoring) ---- */
 const GAME = { PLATEAU_LO:8, PLATEAU_HI:2, MAX_PTS:10, SLOPE:1, EASY_FLOOR:4, OVER_MIN:7, COMBO_STEP:30, MULT_CAP:5, DT_CAP:5, GRADE_S:90, GRADE_A:80, GRADE_B:68, GRADE_C:55 };
@@ -667,7 +673,7 @@ const HR = { device:null, char:null, bpm:null, connected:false, zone:null, lastO
 /* ===================== INIT ===================== */
 function load(){
   try{ Object.assign(PROFILE, JSON.parse(localStorage.getItem("maf_profile")||"{}")); }catch(e){}
-  applyProfileUI(); renderWorkouts(); checkEnv(); initMusic();   // renderHistory runs after IndexedDB loads (initMusic)
+  applyProfileUI(); renderWorkouts(); checkEnv(); initMusic(); loadRunnerSprites();   // renderHistory runs after IndexedDB loads (initMusic)
 }
 function saveProfile(){ localStorage.setItem("maf_profile", JSON.stringify(PROFILE)); }
 function applyProfileUI(){
@@ -703,6 +709,7 @@ function show(s){
   if(s==="run") renderWorkouts();
   if(s==="sessions") renderHistory();
   if(s==="more") renderAchievements();
+  if(s!=="player") RunGame.stop();
 }
 
 /* ===================== TIME HELPERS ===================== */
@@ -767,6 +774,7 @@ function loadStage(){
   drawGauge();     // render the HR zone gauge for this stage's ceiling
   updateRec();
   updateGameHUD(); var gh=$("ghud"); if(gh) gh.classList.toggle("paused", cur.stages[idx].mood!=="intense");
+  applyPlayerView();
 }
 function renderStageValues(){
   const s=cur.stages[idx], a=SESS.actuals[idx];
@@ -825,13 +833,14 @@ function startTick(){
 }
 function play(){
   running=true; $("btnPlay").textContent="Pause"; unlockAudio(); requestWake(); startTick();
+  if(PROFILE.playerView!=="gauge") RunGame.start();
   if(!workoutMusicCued){            // auto-start music ONCE, on the first Start; manual control thereafter
     workoutMusicCued=true;
     var a=$("audioEl");
     if(playlist.length && a.paused){ if(a.src) a.play().catch(function(){}); else playTrack(0); }
   }
 }
-function pause(){ running=false; $("btnPlay").textContent="Resume"; clearInterval(tick); releaseWake(); }
+function pause(){ running=false; $("btnPlay").textContent="Resume"; clearInterval(tick); releaseWake(); RunGame.stop(); }
 function nextStageAuto(){
   clearInterval(tick); chime(); flash();
   if(idx<cur.stages.length-1){ idx++; loadStage(); startTick(); }
@@ -862,7 +871,7 @@ function downsample(){
   return out;
 }
 function endWorkout(manual){
-  running=false; clearInterval(tick); releaseWake(); $("btnPlay").textContent="Start";
+  running=false; clearInterval(tick); releaseWake(); RunGame.stop(); $("btnPlay").textContent="Start";
   SESS.endSec=Math.round(elapsedSec());
   SESS.stats=computeStats();
   pendingTitle=cur?cur.title:"Workout"; pendingIsTest=cur?!!cur.isTest:false;
@@ -954,6 +963,95 @@ function drawGauge(){
   $("gSweet").setAttribute("d",gArc(cx,cy,r,gAngle(c-5),gAngle(c)));     $("gSweet").setAttribute("stroke","var(--z-sweet)");
   $("gOver").setAttribute("d", gArc(cx,cy,r,gAngle(c),gAngle(c+6)));     $("gOver").setAttribute("stroke","var(--z-over)");
 }
+
+/* ===================== RUN GAME (pixel side-scroller view) ===================== */
+var RUNNER_FRAMES = [];                 /* base64 data URLs, filled after Pixellab generation */
+var runnerImgs = [], runnerReady = false;
+function loadRunnerSprites(){
+  runnerImgs=[]; runnerReady=false; if(!RUNNER_FRAMES.length) return;
+  var loaded=0; RUNNER_FRAMES.forEach(function(src,i){ var im=new Image(); im.onload=function(){ if(++loaded===RUNNER_FRAMES.length) runnerReady=true; }; im.src=src; runnerImgs[i]=im; });
+}
+var RunGame = (function(){
+  var cv=null, ctx=null, W=0, H=190, dpr=1, raf=0, last=0;
+  var runnerX=0.28, sx0=0, sx1=0, sx2=0, sparks=[], shake=0, legT=0;
+  function el(){ return document.getElementById("runCanvas"); }
+  function resize(){ cv=el(); if(!cv) return; var r=cv.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1);
+    W=Math.max(220,Math.round(r.width)); H=Math.round(r.height||190);
+    cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); ctx=cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.imageSmoothingEnabled=false; }
+  function reset(){ runnerX=0.28; sx0=sx1=sx2=0; sparks=[]; shake=0; legT=0; }
+  function start(){ if(raf) return; cv=el(); if(!cv) return; resize(); last=0; raf=requestAnimationFrame(frame); }
+  function stop(){ if(raf){ cancelAnimationFrame(raf); raf=0; } }
+  function burst(){ for(var i=0;i<18;i++) sparks.push(spark(runnerX*W,H*0.55,true)); }
+  function hit(){ shake=10; }
+  function spark(x,y,big){ var a=Math.random()*Math.PI*2, sp=(big?1.6:1)*(0.6+Math.random()*1.4); return {x:x,y:y,vx:Math.cos(a)*sp*1.4,vy:Math.sin(a)*sp-1.3,life:1,big:!!big}; }
+  function xOf(b,c){ var f=(b-(c-20))/((c+4)-(c-20)); return (0.10+Math.max(0,Math.min(1,f))*0.80); }
+  function moodTint(){ var m=(typeof cur!=="undefined"&&cur&&cur.stages[idx])?cur.stages[idx].mood:"intense"; return m==="warmup"?["#1b2a44","#244068"]:m==="cooldown"?["#231a39","#3a2a5c"]:["#102544","#16456e"]; }
+  function frame(ts){
+    raf=requestAnimationFrame(frame);
+    if(!ctx){ resize(); if(!ctx) return; }
+    if(!last) last=ts; var dt=ts-last; if(dt<26) return; last=ts; var d=Math.min(60,dt)/16.7;
+    var c=activeCeiling(), bpm=HR.bpm, z=mafZone(bpm), lo=c-GAME.PLATEAU_LO, hi=c-GAME.PLATEAU_HI;
+    var tX = (bpm==null)?0.22:xOf(bpm,c); runnerX += (tX-runnerX)*0.12*d;
+    var inBand = bpm!=null && bpm>=c-10 && bpm<=c, over = bpm!=null && bpm>c;
+    var moodOk = !(typeof cur!=="undefined"&&cur&&cur.stages[idx]&&cur.stages[idx].mood!=="intense");
+    var spd=((typeof recentSpeed==="number")?recentSpeed:4)/4;
+    sx0=(sx0+0.3*spd*d)%W; sx1=(sx1+0.9*spd*d)%W; sx2=(sx2+2.2*spd*d)%W; legT+=d*(0.22+0.12*spd);
+    var mult=(SESS&&SESS.live)?SESS.live.mult:1;
+    if(inBand&&moodOk&&Math.random()<0.16*mult) sparks.push(spark(runnerX*W+6,H*0.5,false));
+    for(var i=0;i<sparks.length;i++){ var s=sparks[i]; s.x+=s.vx*d; s.y+=s.vy*d; s.vy+=0.06*d; s.life-=0.02*d; }
+    sparks=sparks.filter(function(s){return s.life>0;});
+    if(shake>0){ shake-=d*0.8; if(shake<0)shake=0; }
+    draw(c,bpm,z,lo,hi,inBand,over,moodOk);
+  }
+  function zc(z){ return z==="over"?"#FF5A52":z==="sweet"?"#FFB02E":z==="aerobic"?"#34C759":z==="easy"?"#4FA3FF":"#9AA3B2"; }
+  function draw(c,bpm,z,lo,hi,inBand,over,moodOk){
+    var ox=shake>0?(Math.random()-0.5)*shake:0, oy=shake>0?(Math.random()-0.5)*shake:0;
+    ctx.clearRect(0,0,W,H); ctx.save(); ctx.translate(ox,oy);
+    var t=moodTint(), g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,t[0]); g.addColorStop(1,t[1]); ctx.fillStyle=g; ctx.fillRect(-6,-6,W+12,H+12);
+    ctx.fillStyle="rgba(255,255,255,.05)"; for(var i=-1;i<W/60+1;i++){ var hx=((i*60-sx0)%(W+60)+W+60)%(W+60)-30; ctx.beginPath(); ctx.arc(hx,H*0.74,40,Math.PI,0); ctx.fill(); }
+    ctx.fillStyle="rgba(0,0,0,.18)"; for(var j=-1;j<W/48+1;j++){ var bx2=((j*48-sx1)%(W+48)+W+48)%(W+48)-24; ctx.fillRect(bx2,H*0.6,24,H*0.2); }
+    ctx.fillStyle="rgba(0,0,0,.34)"; ctx.fillRect(0,H*0.8,W,H*0.2);
+    ctx.fillStyle="rgba(255,255,255,.13)"; for(var k=-1;k<W/26+1;k++){ var gx=((k*26-sx2)%(W+26)+W+26)%(W+26)-13; ctx.fillRect(gx,H*0.8+6,12,3); }
+    var zL=xOf(lo,c)*W, zR=xOf(hi,c)*W, zw=Math.max(10,zR-zL);
+    var zg=ctx.createLinearGradient(0,0,0,H); zg.addColorStop(0,"rgba(255,210,74,.04)"); zg.addColorStop(.5,"rgba(255,210,74,.22)"); zg.addColorStop(1,"rgba(255,210,74,.04)");
+    ctx.fillStyle=zg; ctx.fillRect(zL,0,zw,H*0.86); ctx.fillStyle="rgba(255,210,74,.55)"; ctx.fillRect(zL,0,2,H*0.86); ctx.fillRect(zR-2,0,2,H*0.86);
+    for(var p=0;p<sparks.length;p++){ var s=sparks[p]; ctx.globalAlpha=Math.max(0,s.life); ctx.fillStyle=s.big?"#FFD24A":"#FFE08A"; var sz=s.big?4:3; ctx.fillRect(s.x,s.y,sz,sz); }
+    ctx.globalAlpha=1;
+    var rx=runnerX*W, ry=H*0.8; drawRunner(rx,ry,over,inBand);
+    if(bpm!=null&&moodOk){ ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
+      if(rx<zL-6){ ctx.fillStyle="#4FA3FF"; ctx.fillText("▶ SPEED UP", Math.min(W-46,rx+52), ry-48); }
+      else if(over){ ctx.fillStyle="#FF5A52"; ctx.fillText("EASE UP ◀", Math.max(46,rx-46), ry-48); } }
+    ctx.restore();
+    ctx.textAlign="left"; ctx.font="bold 30px sans-serif"; ctx.fillStyle=bpm==null?"#9AA3B2":zc(z); ctx.fillText(bpm==null?"––":bpm,12,36);
+    ctx.font="11px sans-serif"; ctx.fillStyle="#9AA3B2"; ctx.fillText("bpm · ≤ "+c,12,50);
+    if(!moodOk){ ctx.textAlign="right"; ctx.font="bold 12px sans-serif"; ctx.fillStyle="#9AA3B2"; ctx.fillText("scoring paused",W-12,22); }
+  }
+  function drawRunner(x,y,over,inBand){
+    if(runnerReady&&runnerImgs.length){ var n=runnerImgs.length, fi=Math.floor(legT)%n, im=runnerImgs[fi], sz=66;
+      ctx.save(); if(inBand){ ctx.shadowColor="#FFD24A"; ctx.shadowBlur=14; } if(over) ctx.globalAlpha=0.9;
+      ctx.drawImage(im,Math.round(x-sz/2),Math.round(y-sz+6),sz,sz); ctx.restore(); return; }
+    drawPixelRunner(x,y,over,inBand);
+  }
+  function drawPixelRunner(x,y,over,inBand){
+    var leg=Math.sin(legT*2), col=over?"#FF7A72":(inBand?"#34C759":"#7fd0ff"), skin="#f1c8a0";
+    ctx.save(); if(inBand){ ctx.shadowColor="#FFD24A"; ctx.shadowBlur=12; }
+    ctx.fillStyle=skin; ctx.fillRect(x-2,y-30,8,7);
+    ctx.fillStyle=col; ctx.fillRect(x-3,y-23,10,12);
+    ctx.fillStyle=skin; ctx.fillRect(x-7,y-22+leg*3,4,8); ctx.fillRect(x+7,y-22-leg*3,4,8);
+    ctx.fillStyle="#26303a"; ctx.fillRect(x-3,y-11+Math.max(0,leg)*4,4,11); ctx.fillRect(x+3,y-11+Math.max(0,-leg)*4,4,11);
+    ctx.restore();
+    if(over){ ctx.fillStyle="rgba(255,255,255,.7)"; ctx.fillRect(x+7,y-28,2,2); ctx.fillRect(x+10,y-24,2,2); }
+  }
+  return { start:start, stop:stop, resize:resize, reset:reset, burst:burst, hit:hit };
+})();
+function applyPlayerView(){
+  var game = PROFILE.playerView!=="gauge", c=$("runCanvas"), g=$("gauge"), b=$("viewToggle");
+  if(c) c.style.display=game?"block":"none";
+  if(g) g.style.display=game?"none":"";
+  if(b) b.textContent=game?"📊 Gauge":"🎮 Game";
+  if(game){ RunGame.resize(); RunGame.start(); } else { RunGame.stop(); drawGauge(); setHRUI(); }
+}
+function togglePlayerView(){ PROFILE.playerView=(PROFILE.playerView==="gauge")?"game":"gauge"; saveProfile(); applyPlayerView(); }
 function zoneColor(z){ return z==="over"?"var(--z-over)":z==="sweet"?"var(--z-sweet)":z==="aerobic"?"var(--z-aerobic)":"var(--z-easy)"; }
 function verdictText(z){ return z==="over"?"SLOW DOWN":z==="sweet"?"EASE UP":z==="aerobic"?"IN RANGE":"PUSH A BIT"; }
 function setHRUI(){
@@ -1007,7 +1105,7 @@ function beep(freq,ms){
 function chime(){ beep(660,140); setTimeout(()=>beep(990,220),160); }
 async function requestWake(){ try{ if("wakeLock" in navigator) wakeLock=await navigator.wakeLock.request("screen"); }catch(e){} }
 function releaseWake(){ try{ if(wakeLock){ wakeLock.release(); wakeLock=null; } }catch(e){} }
-document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&running) requestWake(); });
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"){ if(running) requestWake(); if(PROFILE.playerView!=="gauge" && $("player") && $("player").classList.contains("active")) RunGame.start(); } else { RunGame.stop(); } });
 
 /* ===================== SESSIONS / HISTORY ===================== */
 let pendingTitle="Workout", pendingIsTest=false, currentSavedId=null;
@@ -1185,8 +1283,8 @@ function liveScore(bpm, stageIdx){
   L.mult=Math.min(GAME.MULT_CAP, 1+Math.floor(L.combo/GAME.COMBO_STEP));
   L.points += Math.round(basePoints(bpm,c,isTest)*L.mult*dt);
   updateGameHUD();
-  if(over && comboWas>0) gamePopup("COMBO LOST","over");
-  else if(L.mult>prevMult) gamePopup(L.mult+"× COMBO!","up");
+  if(over && comboWas>0){ gamePopup("COMBO LOST","over"); RunGame.hit(); }
+  else if(L.mult>prevMult){ gamePopup(L.mult+"× COMBO!","up"); RunGame.burst(); }
 }
 function updateGameHUD(){
   if(!SESS||!SESS.live) return; var L=SESS.live;
