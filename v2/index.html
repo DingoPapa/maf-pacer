@@ -1010,11 +1010,14 @@ var RunGame = (function(){
     var t=moodTint(), g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,t[0]); g.addColorStop(1,t[1]); ctx.fillStyle=g; ctx.fillRect(-6,-6,W+12,H+12);
     ctx.fillStyle="rgba(255,255,255,.05)"; for(var i=-1;i<W/60+1;i++){ var hx=((i*60-sx0)%(W+60)+W+60)%(W+60)-30; ctx.beginPath(); ctx.arc(hx,H*0.74,40,Math.PI,0); ctx.fill(); }
     ctx.fillStyle="rgba(0,0,0,.18)"; for(var j=-1;j<W/48+1;j++){ var bx2=((j*48-sx1)%(W+48)+W+48)%(W+48)-24; ctx.fillRect(bx2,H*0.6,24,H*0.2); }
-    ctx.fillStyle="rgba(0,0,0,.34)"; ctx.fillRect(0,H*0.8,W,H*0.2);
-    ctx.fillStyle="rgba(255,255,255,.13)"; for(var k=-1;k<W/26+1;k++){ var gx=((k*26-sx2)%(W+26)+W+26)%(W+26)-13; ctx.fillRect(gx,H*0.8+6,12,3); }
-    var zL=xOf(lo,c)*W, zR=xOf(hi,c)*W, zw=Math.max(10,zR-zL);
-    var zg=ctx.createLinearGradient(0,0,0,H); zg.addColorStop(0,"rgba(255,210,74,.04)"); zg.addColorStop(.5,"rgba(255,210,74,.22)"); zg.addColorStop(1,"rgba(255,210,74,.04)");
-    ctx.fillStyle=zg; ctx.fillRect(zL,0,zw,H*0.86); ctx.fillStyle="rgba(255,210,74,.55)"; ctx.fillRect(zL,0,2,H*0.86); ctx.fillRect(zR-2,0,2,H*0.86);
+    var gy=H*0.8, zL=xOf(lo,c)*W, zR=xOf(hi,c)*W, zw=Math.max(10,zR-zL);
+    ctx.fillStyle="rgba(0,0,0,.36)"; ctx.fillRect(0,gy,W,H-gy);
+    ctx.fillStyle="rgba(79,163,255,.22)"; ctx.fillRect(0,gy,zL,9);
+    ctx.fillStyle="rgba(255,90,82,.22)"; ctx.fillRect(zR,gy,W-zR,9);
+    ctx.fillStyle="rgba(255,210,74,.5)"; ctx.fillRect(zL,gy,zw,9); ctx.fillStyle="#FFD24A"; ctx.fillRect(zL,gy,zw,3);
+    ctx.fillStyle="#FFD24A"; ctx.fillRect(zL-1,gy-18,3,18); ctx.beginPath(); ctx.moveTo(zL+2,gy-18); ctx.lineTo(zL+11,gy-14); ctx.lineTo(zL+2,gy-10); ctx.closePath(); ctx.fill();
+    ctx.fillRect(zR-2,gy-18,3,18); ctx.beginPath(); ctx.moveTo(zR-2,gy-18); ctx.lineTo(zR-11,gy-14); ctx.lineTo(zR-2,gy-10); ctx.closePath(); ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,.12)"; for(var k=-1;k<W/26+1;k++){ var gx=((k*26-sx2)%(W+26)+W+26)%(W+26)-13; ctx.fillRect(gx,gy+14,12,3); }
     for(var p=0;p<sparks.length;p++){ var s=sparks[p]; ctx.globalAlpha=Math.max(0,s.life); ctx.fillStyle=s.big?"#FFD24A":"#FFE08A"; var sz=s.big?4:3; ctx.fillRect(s.x,s.y,sz,sz); }
     ctx.globalAlpha=1;
     var rx=runnerX*W, ry=H*0.8; drawRunner(rx,ry,over,inBand);
