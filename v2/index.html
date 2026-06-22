@@ -638,13 +638,12 @@ const RANKS = [[1,"Base Builder"],[3,"Aerobic Apprentice"],[5,"Zone Keeper"],[7,
    speed:null => a "hold" stage: dial in your own speed with the steppers */
 const WORKOUTS = [
   {
-    id:"today", title:"Jog · Walk · Jog — 60 min", tag:"Next run · two 20-min jogs, 10-min walk reset between", isTest:false,
+    id:"today", title:"Steady Base — 45 min", tag:"Tomorrow (Jun 22) · easy aerobic volume, all under 140", isTest:false,
     stages:[
       {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300,  cue:"Easy walk. Let your heart rate settle into the low 100s."},
-      {name:"Jog block 1",   type:"jog",  mood:"intense",  speed:4.1, incline:1, sec:1200, cue:"Start at 4.1 and hold HR 132–138. If you touch 140, drop the speed. Chase the heart rate, not the pace."},
-      {name:"Walk break",    type:"walk", mood:"cooldown", speed:3.0, incline:1, sec:600,  cue:"Recovery walk — let your HR drop back toward the 110s. Catch your breath, sip water. Don't rush it."},
-      {name:"Jog block 2",   type:"jog",  mood:"intense",  speed:4.1, incline:1, sec:1200, cue:"Second block, same as the first: hold HR 132–138. You're warm now, so you may need a touch less speed. Touch 140 → drop the pace."},
-      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300,  cue:"Easy walk to finish. Great work."}
+      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.8, incline:1, sec:240,  cue:"Gentle shuffle — let your HR rise on its own, no rush into the band."},
+      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.1, incline:1, sec:1860, cue:"Hold HR 132–138 at ~4.1. This is base-building: easy and steady is the whole point. Touch 140 → ease off. Chase the heart rate, not the pace."},
+      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300,  cue:"Easy walk to finish. Let your HR come down."}
     ]
   },
   {
