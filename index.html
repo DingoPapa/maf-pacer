@@ -1070,24 +1070,26 @@ var RunGame = (function(){
       ctx.fillStyle=bandC; ctx.fillRect(zL-1,gy-18,3,18); ctx.beginPath(); ctx.moveTo(zL+2,gy-18); ctx.lineTo(zL+11,gy-14); ctx.lineTo(zL+2,gy-10); ctx.closePath(); ctx.fill();
       ctx.fillRect(zR-2,gy-18,3,18); ctx.beginPath(); ctx.moveTo(zR-2,gy-18); ctx.lineTo(zR-11,gy-14); ctx.lineTo(zR-2,gy-10); ctx.closePath(); ctx.fill();
     }
-    ctx.fillStyle="rgba(255,255,255,.12)"; for(var k=-1;k<W/26+1;k++){ var gx=((k*26-sx2)%(W+26)+W+26)%(W+26)-13; ctx.fillRect(gx,gy+14,12,3); }
+    /* (dashed ground line removed — the bottom strip now holds the instruction line) */
     for(var ci=0;ci<coins.length;ci++){ var cn=coins[ci]; if(cn.gem){ ctx.save(); ctx.translate(cn.x,cn.y); ctx.rotate(0.79); ctx.fillStyle="#7be0ff"; ctx.fillRect(-4,-4,8,8); ctx.restore(); } else { ctx.fillStyle="#FFD24A"; ctx.beginPath(); ctx.arc(cn.x,cn.y,5,0,6.28); ctx.fill(); } }
     for(var ti=0;ti<trail.length;ti++){ var tr=trail[ti]; ctx.globalAlpha=Math.max(0,tr.life)*0.5; ctx.fillStyle=(mult>=5)?("hsl("+Math.round(tr.hue)+",90%,62%)"):"#FFB02E"; ctx.fillRect(tr.x-3,tr.y-3,6,6); } ctx.globalAlpha=1;
     for(var p=0;p<sparks.length;p++){ var s=sparks[p]; ctx.globalAlpha=Math.max(0,s.life); ctx.fillStyle=s.big?"#FFD24A":"#FFE08A"; var sz=s.big?4:3; ctx.fillRect(s.x,s.y,sz,sz); } ctx.globalAlpha=1;
     var rx=runnerX*W, ry=H*0.8;
     if(mult>=4&&phase==="work") drawPet(rx-26,ry);
     drawRunner(rx,ry,over,inTarget);
-    if(bpm!=null){ ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
-      if(phase==="warm"){ ctx.fillStyle="#9fd0ff"; ctx.fillText("EASE IN", rx, ry-48); }
-      else if(phase==="recover"){ if(rx>zR+6){ ctx.fillStyle="#FF8C6b"; ctx.fillText("BRING IT DOWN ◀", Math.max(64,rx-44), ry-48); } else if(inTarget){ ctx.fillStyle="#4FA3FF"; ctx.fillText("RECOVERING ✓", rx, ry-48); } }
-      else { if(rx<zL-6){ ctx.fillStyle="#4FA3FF"; ctx.fillText("▶ SPEED UP", Math.min(W-46,rx+52), ry-48); } else if(over){ ctx.fillStyle="#FF5A52"; ctx.fillText("EASE UP ◀", Math.max(46,rx-46), ry-48); } } }
+    /* phase directions/warnings now render in the bottom buffer strip (after restore) */
     if(glow5>0){ ctx.globalAlpha=glow5*0.12; ctx.fillStyle="#FFD24A"; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1; }
     ctx.restore();
     ctx.textAlign="left"; ctx.font="bold 30px sans-serif"; ctx.fillStyle=bpm==null?"#9AA3B2":zc(z); ctx.fillText(bpm==null?"––":bpm,12,36);
     ctx.font="11px sans-serif"; ctx.fillStyle="#9AA3B2"; ctx.fillText("bpm · ≤ "+c,12,50);
     var coinTot=((PROFILE.game&&PROFILE.game.coins)||0)+coinsRun; ctx.fillStyle="#FFD24A"; ctx.beginPath(); ctx.arc(16,64,4,0,6.28); ctx.fill(); ctx.fillStyle="#FFE08A"; ctx.textAlign="left"; ctx.font="bold 12px sans-serif"; ctx.fillText(coinTot,25,68);
     ctx.textAlign="right"; ctx.font="bold 13px sans-serif"; ctx.fillStyle="#cfe0ff"; ctx.fillText(fmtDist(dist),W-12,24); ctx.font="10px sans-serif"; ctx.fillStyle="#9AA3B2"; ctx.fillText(BIOMES[bIdx].n,W-12,38);
-    if(phase!=="work"){ ctx.textAlign="center"; ctx.font="bold 12px sans-serif"; ctx.fillStyle="#9AA3B2"; ctx.fillText(phase==="warm"?"warming up · ease in":"recover · bring it down",W/2,18); }
+    var bt="", bc="#9AA3B2";
+    if(bpm==null){ bt="connect strap"; }
+    else if(phase==="warm"){ bt="EASE IN — let your HR rise"; bc="#9fd0ff"; }
+    else if(phase==="recover"){ if(rx>zR+6){ bt="◀ BRING IT DOWN"; bc="#FF8C6b"; } else if(inTarget){ bt="RECOVERING ✓"; bc="#4FA3FF"; } else { bt="ease off — let it fall"; bc="#9fd0ff"; } }
+    else { if(over){ bt="◀ SLOW DOWN — over the cap"; bc="#FF5A52"; } else if(rx<zL-6){ bt="SPEED UP ▶"; bc="#4FA3FF"; } else if(inTarget){ bt="IN THE ZONE ✓"; bc="#34C759"; } else { bt="hold steady"; bc="#9AA3B2"; } }
+    ctx.textAlign="center"; ctx.font="bold 13px sans-serif"; ctx.fillStyle=bc; ctx.fillText(bt, W/2, gy+24);
     if(cpT>0){ ctx.globalAlpha=Math.min(1,cpT); ctx.textAlign="center"; ctx.font="bold 15px sans-serif"; ctx.fillStyle="#FFD24A"; ctx.fillText(cpTxt,W/2,H*0.3); ctx.globalAlpha=1; }
   }
   function drawRunner(x,y,over,inBand){
