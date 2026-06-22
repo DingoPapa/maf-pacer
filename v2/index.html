@@ -286,6 +286,13 @@
   .po-grade{ font-size:15px; font-weight:800; margin-top:8px; }
   .po-row{ font-size:13px; color:var(--ink); margin-top:8px; }
   .po-ach{ font-size:12px; color:var(--z-sweet); margin-top:8px; font-weight:700; }
+  /* ===== dev/test panel (gated by #dev) ===== */
+  .devpanel{ position:fixed; left:8px; right:8px; bottom:62px; z-index:90; max-width:360px; margin:0 auto; background:#11151c; border:1px solid var(--line); border-radius:14px; padding:10px 12px; box-shadow:0 10px 30px rgba(0,0,0,.55); font-size:12px; color:var(--ink); }
+  .devpanel .dev-h{ font-weight:700; margin-bottom:4px; }
+  .devpanel .dev-x{ float:right; background:none; border:none; color:var(--muted); font-size:14px; padding:0 2px; }
+  .devpanel .dev-row{ display:flex; align-items:center; gap:6px; margin:7px 0; flex-wrap:wrap; }
+  .devpanel button{ background:var(--panel2); border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:4px 9px; font-size:12px; font-weight:600; }
+  .devfab{ position:fixed; right:10px; bottom:62px; z-index:90; width:42px; height:42px; border-radius:50%; background:#11151c; border:1px solid var(--line); color:#fff; font-size:18px; box-shadow:0 6px 18px rgba(0,0,0,.4); }
   /* ===== RUN GAME (side-scroller) ===== */
   .stagecard{ position:relative; }
   .viewtoggle{ position:absolute; top:8px; right:10px; z-index:3; background:rgba(0,0,0,.32); border:1px solid var(--line); color:var(--ink); font-size:11px; font-weight:700; padding:5px 10px; border-radius:999px; }
@@ -581,6 +588,16 @@
   <button data-tab="sessions" onclick="show('sessions')"><span class="ico">📊</span>Trends</button>
   <button data-tab="more" onclick="show('more')"><span class="ico">⋯</span>More</button>
 </nav>
+<div id="devPanel" class="devpanel" style="display:none;">
+  <div class="dev-h">🧪 Test panel<button class="dev-x" onclick="document.getElementById('devPanel').style.display='none'">✕</button></div>
+  <label class="dev-row"><input type="checkbox" id="devSim" onchange="devToggleSim(this.checked)"> Simulate HR (drives the game)</label>
+  <div class="dev-row"><input type="range" id="devHr" min="90" max="165" value="130" oninput="devSetHR(this.value)" style="flex:1;"><b id="devHrVal" style="min-width:34px;text-align:right;">130</b></div>
+  <div class="dev-row"><span>Phase:</span><button onclick="devPhase('warmup')">Warm-up</button><button onclick="devPhase('intense')">Work</button><button onclick="devPhase('cooldown')">Recover</button></div>
+  <div class="dev-row"><span>Biome:</span><button onclick="devBiome(0)">Mdw</button><button onclick="devBiome(1)">Frst</button><button onclick="devBiome(2)">Cst</button><button onclick="devBiome(3)">City</button><button onclick="devBiome(4)">Hld</button><button onclick="devBiome(5)">Nht</button><button onclick="devBiome(-1)">Auto</button></div>
+  <div class="dev-row"><span>Combo:</span><input type="range" id="devMult" min="1" max="5" value="1" oninput="devMult(this.value)" style="flex:1;"><b id="devMultVal" style="min-width:24px;">1×</b></div>
+  <div class="dev-row"><label><input type="checkbox" onchange="devFastBiomes(this.checked)"> Fast biomes</label><button onclick="devCoins()">+100 coins</button></div>
+</div>
+<button id="devFab" class="devfab" style="display:none;" onclick="var p=document.getElementById('devPanel');p.style.display=(p.style.display==='none'?'block':'none');">🧪</button>
 <audio id="audioEl" preload="metadata"></audio>
 <div class="np" id="nowPlaying" onclick="if(event.target===this)closeNP()">
   <div class="np-card">
@@ -673,8 +690,18 @@ const HR = { device:null, char:null, bpm:null, connected:false, zone:null, lastO
 /* ===================== INIT ===================== */
 function load(){
   try{ Object.assign(PROFILE, JSON.parse(localStorage.getItem("maf_profile")||"{}")); }catch(e){}
-  applyProfileUI(); renderWorkouts(); checkEnv(); initMusic(); loadRunnerSprites(); loadDogSprites(); loadSceneSprites();   // renderHistory runs after IndexedDB loads (initMusic)
+  applyProfileUI(); renderWorkouts(); checkEnv(); initMusic(); loadRunnerSprites(); loadDogSprites(); loadSceneSprites(); devInit();   // renderHistory runs after IndexedDB loads (initMusic)
 }
+/* ===================== DEV / TEST PANEL (gated by #dev in the URL) ===================== */
+var DEV={sim:false,hr:130,timer:null};
+function devInit(){ if(location.hash.indexOf("dev")<0) return; var p=$("devPanel"), f=$("devFab"); if(p) p.style.display="block"; if(f) f.style.display="block"; }
+function devSetHR(v){ DEV.hr=+v; if($("devHrVal")) $("devHrVal").textContent=DEV.hr; if(DEV.sim){ HR.bpm=DEV.hr; HR.connected=true; setHRUI(); } }
+function devToggleSim(on){ DEV.sim=on; if(on){ HR.connected=true; HR.bpm=DEV.hr; clearInterval(DEV.timer); DEV.timer=setInterval(function(){ HR.bpm=DEV.hr; HR.lastSampleTs=Date.now(); if(running&&SESS){ SESS.hr.push({t:Math.round(elapsedSec()),bpm:DEV.hr,idx:idx}); liveScore(DEV.hr,idx); } setHRUI(); },1000); } else { clearInterval(DEV.timer); DEV.timer=null; } }
+function devPhase(mood){ if(!cur){ startWorkout(WORKOUTS.find(function(w){return w.id===TODAY_ID;})||WORKOUTS[0]); } else if($("player")&&!$("player").classList.contains("active")){ show("player"); } if(!cur) return; for(var i=0;i<cur.stages.length;i++){ if(cur.stages[i].mood===mood){ idx=i; loadStage(); break; } } if(!running) play(); }
+function devBiome(n){ window.__biome=(n<0?null:n); }
+function devMult(m){ m=+m; if(SESS&&SESS.live){ SESS.live.mult=m; SESS.live.combo=(m-1)*30+5; if(typeof updateGameHUD==="function") updateGameHUD(); } if($("devMultVal")) $("devMultVal").textContent=m+"×"; }
+function devFastBiomes(on){ window.__bsec= on?8:null; }
+function devCoins(){ if(!PROFILE.game) PROFILE.game={version:1,xp:0,level:1,bestPoints:0,achievements:{},coins:0}; PROFILE.game.coins=(PROFILE.game.coins||0)+100; saveProfile(); if(typeof toast==="function") toast("+100 coins"); }
 function saveProfile(){ localStorage.setItem("maf_profile", JSON.stringify(PROFILE)); }
 function applyProfileUI(){
   $("ceilBig").textContent=PROFILE.ceiling;
@@ -1030,7 +1057,7 @@ var RunGame = (function(){
     var spd=((typeof recentSpeed==="number")?recentSpeed:4)/4, boost=(mult>=5?1.6:1);
     sx0+=0.3*spd*d*boost; sx1+=0.9*spd*d*boost; sx2+=2.2*spd*d*boost; legT+=d*(0.22+0.12*spd); pulseT+=d;   // accumulate (no %W) so every parallax layer tiles seamlessly
     if(runningNow&&isWork){ dist+=d*0.022*(inTarget?1.7:1); zsec+=d*0.0167; }
-    var want=Math.floor(zsec/BSEC)%BIOMES.length;
+    var bsecCur=(typeof window.__bsec==="number")?window.__bsec:BSEC; var want=(window.__biome!=null)?window.__biome:Math.floor(zsec/bsecCur)%BIOMES.length;
     if(want!==bIdx){ bIdx=want; bMix=0; cpTxt="▶ "+BIOMES[bIdx].n+" · "+Math.round(dist)+" m"; cpT=2.6; }
     if(bMix<1) bMix=Math.min(1,bMix+d*0.04);
     if(cpT>0) cpT-=d/60;
@@ -1059,16 +1086,16 @@ var RunGame = (function(){
       if(bMix<1&&sceP){ ctx.globalAlpha=1-bMix; drawScene(sceP,sx1,92,H*0.8); ctx.globalAlpha=1; }
       ctx.globalAlpha=(bMix<1?bMix:1); drawScene(sceC,sx1,92,H*0.8); ctx.globalAlpha=1;
     } else { ctx.fillStyle="rgba(0,0,0,.20)"; for(var j=-1;j<W/48+1;j++){ var bx2=((j*48-sx1)%(W+48)+W+48)%(W+48)-24; ctx.fillRect(bx2,H*0.6,24,H*0.2); } }
-    var gy=H*0.8, gH=H-gy, zL=0, zR=0;
+    var gy=H*0.8, gH=H-gy, SB=11, zL=0, zR=0;
     ctx.fillStyle="rgba(0,0,0,.42)"; ctx.fillRect(0,gy,W,gH);
-    if(phase==="warm"){ ctx.fillStyle="rgba(79,163,255,.13)"; ctx.fillRect(0,gy,W,gH); ctx.fillStyle="rgba(79,163,255,.42)"; ctx.fillRect(0,gy,W,3); }
+    if(phase==="warm"){ ctx.fillStyle="rgba(79,163,255,.24)"; ctx.fillRect(0,gy,W,SB); ctx.fillStyle="rgba(79,163,255,.5)"; ctx.fillRect(0,gy,W,3); }
     else if(scored){
       zL=xOfP(dispLo,c,phase)*W; zR=xOfP(dispHi,c,phase)*W;
-      var loF=(phase==="work")?"rgba(79,163,255,.15)":"rgba(52,199,89,.14)", loE=(phase==="work")?"rgba(79,163,255,.5)":"rgba(52,199,89,.45)";
-      var midF=(phase==="work")?"rgba(255,210,74,.26)":"rgba(91,168,255,.28)", midE=(phase==="work")?"#FFD24A":"#7fc0ff";
-      ctx.fillStyle=loF; ctx.fillRect(0,gy,zL,gH); ctx.fillStyle=loE; ctx.fillRect(0,gy,Math.max(0,zL),3);
-      ctx.fillStyle="rgba(255,90,82,.16)"; ctx.fillRect(zR,gy,W-zR,gH); ctx.fillStyle="rgba(255,90,82,.55)"; ctx.fillRect(zR,gy,W-zR,3);
-      ctx.fillStyle=midF; ctx.fillRect(zL,gy,zR-zL,gH); ctx.fillStyle=midE; ctx.fillRect(zL,gy,Math.max(2,zR-zL),3);
+      var loF=(phase==="work")?"rgba(79,163,255,.24)":"rgba(52,199,89,.22)", loE=(phase==="work")?"rgba(79,163,255,.55)":"rgba(52,199,89,.5)";
+      var midF=(phase==="work")?"rgba(255,210,74,.5)":"rgba(91,168,255,.45)", midE=(phase==="work")?"#FFD24A":"#7fc0ff";
+      ctx.fillStyle=loF; ctx.fillRect(0,gy,zL,SB); ctx.fillStyle=loE; ctx.fillRect(0,gy,Math.max(0,zL),3);
+      ctx.fillStyle="rgba(255,90,82,.26)"; ctx.fillRect(zR,gy,W-zR,SB); ctx.fillStyle="rgba(255,90,82,.6)"; ctx.fillRect(zR,gy,W-zR,3);
+      ctx.fillStyle=midF; ctx.fillRect(zL,gy,zR-zL,SB); ctx.fillStyle=midE; ctx.fillRect(zL,gy,Math.max(2,zR-zL),3);
     }
     /* (dashed ground line removed — the bottom strip now holds the instruction line) */
     for(var ci=0;ci<coins.length;ci++){ var cn=coins[ci]; if(cn.gem){ ctx.save(); ctx.translate(cn.x,cn.y); ctx.rotate(0.79); ctx.fillStyle="#7be0ff"; ctx.fillRect(-4,-4,8,8); ctx.restore(); } else { ctx.fillStyle="#FFD24A"; ctx.beginPath(); ctx.arc(cn.x,cn.y,5,0,6.28); ctx.fill(); } }
