@@ -981,13 +981,13 @@ function loadSceneSprites(){ sceneImgs=[]; sceneReady=false; var have=SCENE_SRC.
 var RunGame = (function(){
   var cv=null, ctx=null, W=0, H=190, dpr=1, raf=0, last=0;
   var runnerX=0.28, sx0=0, sx1=0, sx2=0, sparks=[], shake=0, legT=0;
-  var dist=0, zsec=0, bIdx=0, bMix=1, coins=[], coinT=1.2, coinN=0, coinsRun=0, trail=[], cpTxt="", cpT=0, glow5=0;
+  var dist=0, zsec=0, bIdx=0, bMix=1, coins=[], coinT=1.2, coinN=0, coinsRun=0, trail=[], cpTxt="", cpT=0, glow5=0, pulseT=0;
   var BIOMES=[{n:"Meadow",s:["#1e3a5f","#356b86"],a:"#3fae6e"},{n:"Forest",s:["#143a2c","#225b46"],a:"#2f9f5e"},{n:"Coast",s:["#163a52","#2f7fa6"],a:"#37b6cf"},{n:"City",s:["#262050","#473a78"],a:"#8a78e0"},{n:"Highlands",s:["#2a2030","#52415c"],a:"#b59ab0"},{n:"Night",s:["#0d1330","#1b2350"],a:"#5b6bd0"}], BSEC=300;
   function el(){ return document.getElementById("runCanvas"); }
   function resize(){ cv=el(); if(!cv) return; var r=cv.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1);
     W=Math.max(220,Math.round(r.width)); H=Math.round(r.height||190);
     cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); ctx=cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.imageSmoothingEnabled=false; }
-  function reset(){ runnerX=0.28; sx0=sx1=sx2=0; sparks=[]; shake=0; legT=0; dist=0; zsec=0; bIdx=0; bMix=1; coins=[]; coinT=1.2; coinN=0; coinsRun=0; trail=[]; cpTxt=""; cpT=0; glow5=0; }
+  function reset(){ runnerX=0.28; sx0=sx1=sx2=0; sparks=[]; shake=0; legT=0; dist=0; zsec=0; bIdx=0; bMix=1; coins=[]; coinT=1.2; coinN=0; coinsRun=0; trail=[]; cpTxt=""; cpT=0; glow5=0; pulseT=0; }
   function start(){ if(raf) return; cv=el(); if(!cv) return; resize(); last=0; raf=requestAnimationFrame(frame); }
   function stop(){ if(raf){ cancelAnimationFrame(raf); raf=0; } }
   function burst(){ for(var i=0;i<18;i++) sparks.push(spark(runnerX*W,H*0.55,true)); }
@@ -1028,7 +1028,7 @@ var RunGame = (function(){
     var runningNow=(typeof running!=="undefined"&&running);
     var mult=(SESS&&SESS.live)?SESS.live.mult:1;
     var spd=((typeof recentSpeed==="number")?recentSpeed:4)/4, boost=(mult>=5?1.6:1);
-    sx0+=0.3*spd*d*boost; sx1+=0.9*spd*d*boost; sx2+=2.2*spd*d*boost; legT+=d*(0.22+0.12*spd);   // accumulate (no %W) so every parallax layer tiles seamlessly
+    sx0+=0.3*spd*d*boost; sx1+=0.9*spd*d*boost; sx2+=2.2*spd*d*boost; legT+=d*(0.22+0.12*spd); pulseT+=d;   // accumulate (no %W) so every parallax layer tiles seamlessly
     if(runningNow&&isWork){ dist+=d*0.022*(inTarget?1.7:1); zsec+=d*0.0167; }
     var want=Math.floor(zsec/BSEC)%BIOMES.length;
     if(want!==bIdx){ bIdx=want; bMix=0; cpTxt="▶ "+BIOMES[bIdx].n+" · "+Math.round(dist)+" m"; cpT=2.6; }
@@ -1059,16 +1059,16 @@ var RunGame = (function(){
       if(bMix<1&&sceP){ ctx.globalAlpha=1-bMix; drawScene(sceP,sx1,92,H*0.8); ctx.globalAlpha=1; }
       ctx.globalAlpha=(bMix<1?bMix:1); drawScene(sceC,sx1,92,H*0.8); ctx.globalAlpha=1;
     } else { ctx.fillStyle="rgba(0,0,0,.20)"; for(var j=-1;j<W/48+1;j++){ var bx2=((j*48-sx1)%(W+48)+W+48)%(W+48)-24; ctx.fillRect(bx2,H*0.6,24,H*0.2); } }
-    var gy=H*0.8, zL=0, zR=0;
-    ctx.fillStyle="rgba(0,0,0,.36)"; ctx.fillRect(0,gy,W,H-gy);
-    if(scored){
-      zL=xOfP(dispLo,c,phase)*W; zR=xOfP(dispHi,c,phase)*W; var zw=Math.max(10,zR-zL);
-      var bandC=(phase==="recover")?"#4FA3FF":"#FFD24A", bandF=(phase==="recover")?"rgba(79,163,255,.5)":"rgba(255,210,74,.5)";
-      if(phase==="work"){ ctx.fillStyle="rgba(79,163,255,.22)"; ctx.fillRect(0,gy,zL,9); ctx.fillStyle="rgba(255,90,82,.22)"; ctx.fillRect(zR,gy,W-zR,9); }
-      else { ctx.fillStyle="rgba(255,90,82,.18)"; ctx.fillRect(zR,gy,W-zR,9); }
-      ctx.fillStyle=bandF; ctx.fillRect(zL,gy,zw,9); ctx.fillStyle=bandC; ctx.fillRect(zL,gy,zw,3);
-      ctx.fillStyle=bandC; ctx.fillRect(zL-1,gy-18,3,18); ctx.beginPath(); ctx.moveTo(zL+2,gy-18); ctx.lineTo(zL+11,gy-14); ctx.lineTo(zL+2,gy-10); ctx.closePath(); ctx.fill();
-      ctx.fillRect(zR-2,gy-18,3,18); ctx.beginPath(); ctx.moveTo(zR-2,gy-18); ctx.lineTo(zR-11,gy-14); ctx.lineTo(zR-2,gy-10); ctx.closePath(); ctx.fill();
+    var gy=H*0.8, gH=H-gy, zL=0, zR=0;
+    ctx.fillStyle="rgba(0,0,0,.42)"; ctx.fillRect(0,gy,W,gH);
+    if(phase==="warm"){ ctx.fillStyle="rgba(79,163,255,.13)"; ctx.fillRect(0,gy,W,gH); ctx.fillStyle="rgba(79,163,255,.42)"; ctx.fillRect(0,gy,W,3); }
+    else if(scored){
+      zL=xOfP(dispLo,c,phase)*W; zR=xOfP(dispHi,c,phase)*W;
+      var loF=(phase==="work")?"rgba(79,163,255,.15)":"rgba(52,199,89,.14)", loE=(phase==="work")?"rgba(79,163,255,.5)":"rgba(52,199,89,.45)";
+      var midF=(phase==="work")?"rgba(255,210,74,.26)":"rgba(91,168,255,.28)", midE=(phase==="work")?"#FFD24A":"#7fc0ff";
+      ctx.fillStyle=loF; ctx.fillRect(0,gy,zL,gH); ctx.fillStyle=loE; ctx.fillRect(0,gy,Math.max(0,zL),3);
+      ctx.fillStyle="rgba(255,90,82,.16)"; ctx.fillRect(zR,gy,W-zR,gH); ctx.fillStyle="rgba(255,90,82,.55)"; ctx.fillRect(zR,gy,W-zR,3);
+      ctx.fillStyle=midF; ctx.fillRect(zL,gy,zR-zL,gH); ctx.fillStyle=midE; ctx.fillRect(zL,gy,Math.max(2,zR-zL),3);
     }
     /* (dashed ground line removed — the bottom strip now holds the instruction line) */
     for(var ci=0;ci<coins.length;ci++){ var cn=coins[ci]; if(cn.gem){ ctx.save(); ctx.translate(cn.x,cn.y); ctx.rotate(0.79); ctx.fillStyle="#7be0ff"; ctx.fillRect(-4,-4,8,8); ctx.restore(); } else { ctx.fillStyle="#FFD24A"; ctx.beginPath(); ctx.arc(cn.x,cn.y,5,0,6.28); ctx.fill(); } }
@@ -1084,12 +1084,12 @@ var RunGame = (function(){
     ctx.font="11px sans-serif"; ctx.fillStyle="#9AA3B2"; ctx.fillText("bpm · ≤ "+c,12,50);
     var coinTot=((PROFILE.game&&PROFILE.game.coins)||0)+coinsRun; ctx.fillStyle="#FFD24A"; ctx.beginPath(); ctx.arc(16,64,4,0,6.28); ctx.fill(); ctx.fillStyle="#FFE08A"; ctx.textAlign="left"; ctx.font="bold 12px sans-serif"; ctx.fillText(coinTot,25,68);
     ctx.textAlign="right"; ctx.font="bold 13px sans-serif"; ctx.fillStyle="#cfe0ff"; ctx.fillText(fmtDist(dist),W-12,24); ctx.font="10px sans-serif"; ctx.fillStyle="#9AA3B2"; ctx.fillText(BIOMES[bIdx].n,W-12,38);
-    var bt="", bc="#9AA3B2";
-    if(bpm==null){ bt="connect strap"; }
-    else if(phase==="warm"){ bt="EASE IN — let your HR rise"; bc="#9fd0ff"; }
-    else if(phase==="recover"){ if(rx>zR+6){ bt="◀ BRING IT DOWN"; bc="#FF8C6b"; } else if(inTarget){ bt="RECOVERING ✓"; bc="#4FA3FF"; } else { bt="ease off — let it fall"; bc="#9fd0ff"; } }
-    else { if(over){ bt="◀ SLOW DOWN — over the cap"; bc="#FF5A52"; } else if(rx<zL-6){ bt="SPEED UP ▶"; bc="#4FA3FF"; } else if(inTarget){ bt="IN THE ZONE ✓"; bc="#34C759"; } else { bt="hold steady"; bc="#9AA3B2"; } }
-    ctx.textAlign="center"; ctx.font="bold 13px sans-serif"; ctx.fillStyle=bc; ctx.fillText(bt, W/2, gy+24);
+    var bt="", bc="#cfe0ff";
+    if(bpm==null){ bt="Connect strap"; }
+    else if(phase==="warm"){ bt="Ease in"; bc="#9fd0ff"; }
+    else if(phase==="recover"){ if(rx>zR+6){ bt="Bring it down"; bc="#FF9b80"; } else if(inTarget){ bt="Recovery"; bc="#8fc7ff"; } else { bt="Ease off"; bc="#9fd0ff"; } }
+    else { if(over){ bt="Slow down"; bc="#FF6b63"; } else if(rx<zL-6){ bt="Speed up"; bc="#8fc7ff"; } else if(inTarget){ bt="In the zone"; bc="#6fe39a"; } else { bt="Hold steady"; bc="#cfe0ff"; } }
+    ctx.textAlign="center"; ctx.font="bold 13px sans-serif"; ctx.globalAlpha=0.7+0.3*Math.sin(pulseT*0.08); ctx.shadowColor="rgba(0,0,0,.75)"; ctx.shadowBlur=4; ctx.fillStyle=bc; ctx.fillText(bt, W/2, gy+24); ctx.shadowBlur=0; ctx.globalAlpha=1;
     if(cpT>0){ ctx.globalAlpha=Math.min(1,cpT); ctx.textAlign="center"; ctx.font="bold 15px sans-serif"; ctx.fillStyle="#FFD24A"; ctx.fillText(cpTxt,W/2,H*0.3); ctx.globalAlpha=1; }
   }
   function drawRunner(x,y,over,inBand){
