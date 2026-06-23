@@ -666,7 +666,7 @@ const WORKOUTS = [
     ]
   },
   {
-    id:"maftest", title:"4 · Monthly MAF Test", tag:"Once a month — log the speed that holds HR at 140", isTest:true,
+    id:"maftest", title:"Monthly MAF Test", tag:"Your benchmark · hold HR 140 for 15 min, log the pace", isTest:true,
     stages:[
       {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk."},
       {name:"Build",         type:"jog",  mood:"warmup",   speed:3.9, incline:1, sec:300, cue:"Ease up toward MAF."},
@@ -678,7 +678,7 @@ const WORKOUTS = [
 ];
 
 /* Which workout is featured under "Today's workout" (Claude sets this each cycle). */
-const TODAY_ID = "today";
+const TODAY_ID = "maftest";
 
 /* ===================== STATE ===================== */
 const $ = id => document.getElementById(id);
