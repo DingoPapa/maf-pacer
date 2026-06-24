@@ -496,6 +496,8 @@
   <!-- ============ MORE ============ -->
   <section id="more" class="screen">
     <h1>More</h1>
+    <h2>Account</h2>
+    <div class="card" id="acctCard"></div>
     <h2>Music <span class="sub" style="text-transform:none;">(your Suno MP3s, on-device)</span></h2>
     <div class="card">
       <div id="trackNow" class="sub" style="margin-bottom:8px;">No music loaded</div>
@@ -695,7 +697,7 @@ const HR = { device:null, char:null, bpm:null, connected:false, zone:null, lastO
 /* ===================== INIT ===================== */
 function load(){
   try{ Object.assign(PROFILE, JSON.parse(localStorage.getItem("maf_profile")||"{}")); }catch(e){}
-  applyProfileUI(); renderWorkouts(); checkEnv(); initMusic(); loadRunnerSprites(); loadDogSprites(); loadSceneSprites(); devInit();   // renderHistory runs after IndexedDB loads (initMusic)
+  applyProfileUI(); renderWorkouts(); checkEnv(); initMusic(); loadRunnerSprites(); loadDogSprites(); loadSceneSprites(); devInit(); authInit();   // renderHistory runs after IndexedDB loads (initMusic)
 }
 /* ===================== DEV / TEST PANEL (gated by #dev in the URL) ===================== */
 var DEV={sim:false,hr:130,timer:null};
@@ -707,6 +709,35 @@ function devBiome(n){ window.__biome=(n<0?null:n); }
 function devMult(m){ m=+m; if(SESS&&SESS.live){ SESS.live.mult=m; SESS.live.combo=(m-1)*30+5; if(typeof updateGameHUD==="function") updateGameHUD(); } if($("devMultVal")) $("devMultVal").textContent=m+"×"; }
 function devFastBiomes(on){ window.__bsec= on?8:null; }
 function devCoins(){ if(!PROFILE.game) PROFILE.game={version:1,xp:0,level:1,bestPoints:0,achievements:{},coins:0}; PROFILE.game.coins=(PROFILE.game.coins||0)+100; saveProfile(); if(typeof toast==="function") toast("+100 coins"); }
+
+/* ===================== AUTH (Supabase email + password) ===================== */
+var authUser = null;
+function escTxt(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function authInit(){
+  if(!sb){ renderAccount(); return; }
+  sb.auth.getSession().then(function(r){ authUser=(r.data&&r.data.session)?r.data.session.user:null; renderAccount(); });
+  sb.auth.onAuthStateChange(function(ev, session){ authUser = session?session.user:null; renderAccount(); });   // P2: trigger cloud sync on SIGNED_IN here
+}
+function authMsg(t, ok){ var el=$("authMsg"); if(el){ el.textContent=t||""; el.style.color = ok?"var(--z-aerobic)":"var(--z-over)"; } }
+function authSignIn(){ if(!sb){ authMsg("Cloud unavailable — you're offline."); return; } var e=(($("authEmail")||{}).value||"").trim(), p=($("authPass")||{}).value||""; if(!e||!p){ authMsg("Enter your email and password."); return; } authMsg("Signing in…", true); sb.auth.signInWithPassword({email:e, password:p}).then(function(r){ if(r.error) authMsg(r.error.message); else toast("Signed in"); }); }
+function authSignUp(){ if(!sb){ authMsg("Cloud unavailable — you're offline."); return; } var e=(($("authEmail")||{}).value||"").trim(), p=($("authPass")||{}).value||""; if(!e||p.length<6){ authMsg("Enter an email and a password (6+ characters)."); return; } authMsg("Creating account…", true); sb.auth.signUp({email:e, password:p}).then(function(r){ if(r.error){ authMsg(r.error.message); } else if(r.data&&r.data.session){ toast("Account created"); } else { authMsg("Account created — check your email to confirm, then sign in.", true); } }); }
+function authSignOut(){ if(!sb) return; sb.auth.signOut().then(function(){ toast("Signed out"); }); }
+function authReset(){ if(!sb){ authMsg("Cloud unavailable — you're offline."); return; } var e=(($("authEmail")||{}).value||"").trim(); if(!e){ authMsg("Enter your email first, then tap Forgot password."); return; } sb.auth.resetPasswordForEmail(e).then(function(r){ authMsg(r.error?r.error.message:"Password-reset email sent — check your inbox.", !r.error); }); }
+function renderAccount(){
+  var el=$("acctCard"); if(!el) return;
+  if(!sb){ el.innerHTML='<div class="sub">Cloud sync is unavailable (couldn\'t reach Supabase). The app works fully offline — your data stays on this device.</div>'; return; }
+  if(authUser){
+    el.innerHTML='<div class="sub" style="margin-bottom:10px;">✓ Signed in as <b>'+escTxt(authUser.email)+'</b><br>Your runs back up &amp; sync to your account across devices.</div><button class="btn-ghost" style="width:100%;" onclick="authSignOut()">Sign out</button>';
+  } else {
+    el.innerHTML=''+
+      '<div class="sub" style="margin-bottom:10px;">Sign in to back up &amp; sync your runs across devices. The app works fine without an account — your data just stays on this device.</div>'+
+      '<label>Email</label><input id="authEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@email.com">'+
+      '<label style="display:block; margin-top:8px;">Password</label><input id="authPass" type="password" autocomplete="current-password" placeholder="at least 6 characters">'+
+      '<div class="grid2" style="margin-top:12px;"><button class="btn-primary" onclick="authSignIn()">Sign in</button><button class="btn-ghost" onclick="authSignUp()">Create account</button></div>'+
+      '<button class="btn-ghost" style="width:100%; margin-top:8px; font-size:13px;" onclick="authReset()">Forgot password?</button>'+
+      '<div class="sub" id="authMsg" style="margin-top:10px; min-height:16px;"></div>';
+  }
+}
 function saveProfile(){ localStorage.setItem("maf_profile", JSON.stringify(PROFILE)); }
 function applyProfileUI(){
   $("ceilBig").textContent=PROFILE.ceiling;
@@ -740,7 +771,7 @@ function show(s){
   if(s==="home"){ cur=null; currentMood=null; renderHome(); }
   if(s==="run") renderWorkouts();
   if(s==="sessions") renderHistory();
-  if(s==="more") renderAchievements();
+  if(s==="more"){ renderAchievements(); renderAccount(); }
   if(s!=="player") RunGame.stop();
 }
 
