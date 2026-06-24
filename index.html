@@ -498,6 +498,13 @@
     <h1>More</h1>
     <h2>Account</h2>
     <div class="card" id="acctCard"></div>
+    <h2>Feedback</h2>
+    <div class="card">
+      <div class="sub" style="margin-bottom:8px;">Found a bug or have an idea? Send it straight to the developer.</div>
+      <textarea id="fbText" rows="3" maxlength="2000" placeholder="What's working, what's not, what you'd love to see…" style="width:100%; box-sizing:border-box; resize:vertical; padding:10px; border:1px solid var(--line); border-radius:12px; background:var(--surface-2,#181B21); color:inherit; font:inherit;"></textarea>
+      <button class="btn-primary" style="width:100%; margin-top:8px;" onclick="sendFeedback()">Send feedback</button>
+      <div class="sub" id="fbMsg" style="margin-top:8px; min-height:16px;"></div>
+    </div>
     <h2>Music <span class="sub" style="text-transform:none;">(your Suno MP3s, on-device)</span></h2>
     <div class="card">
       <div id="trackNow" class="sub" style="margin-bottom:8px;">No music loaded</div>
@@ -518,6 +525,12 @@
       <label for="importFile" style="display:block;text-align:center;padding:13px;border:1px solid var(--line);border-radius:14px;cursor:pointer;font-weight:700;">⤒ Import data file</label>
       <input id="importFile" type="file" accept="application/json,.json" style="display:none;" onchange="importFile(this.files)">
       <button class="btn-ghost" style="width:100%; margin-top:8px;" onclick="exportAll()">📋 Copy all data</button>
+    </div>
+    <h2>Privacy &amp; your data</h2>
+    <div class="card">
+      <div class="sub" style="line-height:1.5;">Your runs and settings live on this device, and — only if you sign in — back up to your own private cloud account over HTTPS. Each account can only ever see its own data. Export anytime with the buttons above.</div>
+      <button class="btn-danger" style="width:100%; margin-top:10px;" onclick="deleteCloudData()">Delete my cloud data</button>
+      <div class="sub" style="margin-top:8px; font-size:12px;">Removes your runs &amp; profile from the cloud and signs you out. Runs on this device stay until you clear them in Settings. To fully remove your login, just ask.</div>
     </div>
     <h2>Achievements</h2>
     <div class="card"><div class="achgrid" id="achGrid"></div></div>
@@ -635,6 +648,7 @@ const SUPABASE_KEY = "sb_publishable_-F-E8fYqyql7DiZi7ODr5A_qzT1n6yH";
 var sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0, playerView:"game" };
+const APP_VERSION = "2026.06.24";   // tagged onto feedback so reports map to a build
 
 /* ---- ZONE GAME tuning (precision-bullseye scoring) ---- */
 const GAME = { PLATEAU_LO:8, PLATEAU_HI:2, MAX_PTS:10, SLOPE:1, EASY_FLOOR:4, OVER_MIN:7, COMBO_STEP:30, MULT_CAP:5, DT_CAP:5, GRADE_S:90, GRADE_A:80, GRADE_B:68, GRADE_C:55 };
@@ -892,6 +906,34 @@ function syncStatusText(){
   return "Signed in";
 }
 function updateSyncStatus(){ var el=$("syncStatus"); if(el) el.textContent=syncStatusText(); }
+
+/* ===================== P3 — FEEDBACK + ACCOUNT DATA DELETION ===================== */
+function fbMsg(t, ok){ var el=$("fbMsg"); if(el){ el.textContent=t||""; el.style.color=ok?"var(--z-aerobic)":"var(--z-over)"; } }
+function sendFeedback(){
+  var ta=$("fbText"), msg=((ta&&ta.value)||"").trim();
+  if(!msg){ fbMsg("Type a message first."); return; }
+  if(!sb){ fbMsg("Cloud unavailable — you're offline."); return; }
+  if(!authUser){ fbMsg("Sign in (More → Account) to send feedback."); return; }
+  fbMsg("Sending…", true);
+  sb.from("feedback").insert({ user_id:authUser.id, message:msg.slice(0,2000), app_version:APP_VERSION }).then(function(r){
+    if(r.error){ fbMsg(r.error.message); } else { if(ta) ta.value=""; fbMsg("Thanks — sent! 🙏", true); }
+  });
+}
+function deleteCloudData(){
+  if(!sb || !authUser){ toast("Sign in first"); return; }
+  if(!confirm("Delete your runs and profile from the cloud? You'll be signed out. Runs saved on THIS device stay until you clear them in Settings.")) return;
+  var uid=authUser.id;
+  Promise.all([
+    sb.from("sessions").delete().eq("user_id", uid),
+    sb.from("profiles").delete().eq("user_id", uid)
+  ]).then(function(res){
+    var err=res.find(function(r){return r&&r.error;});
+    if(err){ toast("Couldn't delete: "+(err.error.message||"error")); return; }
+    QUEUE.length=0; if(mdb){ try{ dbSyncq("readwrite").clear(); }catch(e){} }   // stop anything re-uploading
+    try{ localStorage.removeItem("maf_cloud_migrated_"+uid); localStorage.removeItem("maf_sync_cursor_"+uid); }catch(e){}
+    return sb.auth.signOut().then(function(){ toast("Cloud data deleted — signed out"); });
+  }).catch(function(e){ toast("Couldn't delete: "+(e&&e.message||e)); });
+}
 
 function saveProfile(){ localStorage.setItem("maf_profile", JSON.stringify(PROFILE)); enqueueProfile(); }
 function applyProfileUI(){
