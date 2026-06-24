@@ -1189,14 +1189,14 @@ function exitWorkout(){
 async function connectHR(){
   if(!("bluetooth" in navigator)){ toast("Open in Bluefy for live HR"); checkEnv(); return; }
   try{
-    const device=await navigator.bluetooth.requestDevice({ filters:[{services:["heart_rate"]}] });
+    const device=await navigator.bluetooth.requestDevice({ filters:[{services:["heart_rate"]}], optionalServices:["battery_service"] });
     HR.device=device; device.addEventListener("gattserverdisconnected", onHRDisconnect);
     const server=await device.gatt.connect();
     const service=await server.getPrimaryService("heart_rate");           // 0x180D
     const char=await service.getCharacteristic("heart_rate_measurement"); // 0x2A37
     HR.char=char; char.addEventListener("characteristicvaluechanged", onHRValue);
     await char.startNotifications();
-    HR.connected=true; setHRUI(); toast("HR connected ✓");
+    HR.connected=true; setHRUI(); toast("HR connected ✓"); readBattery(server);
   }catch(e){
     console.warn("HR connect failed:", e);
     var n=e&&e.name;
@@ -1204,6 +1204,16 @@ async function connectHR(){
     if(n==="NetworkError" || /already|in use|gatt/i.test((e&&e.message)||"")) toast("Strap busy — quit the Polar Beat app (or anything else using it) and retry");
     else toast("HR connect failed — make sure the H10 is on, worn, and snug, then retry");
   }
+}
+async function readBattery(server){   // optional: warn on a low coin-cell (the classic mid-run dropout cause)
+  try{
+    var bs=await server.getPrimaryService("battery_service");
+    var bc=await bs.getCharacteristic("battery_level");
+    var v=await bc.readValue();
+    HR.battery=v.getUint8(0);
+    if(HR.battery<15) toast("⚠ Strap battery "+HR.battery+"% — replace the coin cell soon to avoid mid-run dropouts");
+    updateRec();
+  }catch(e){ /* battery_service isn't exposed by every strap — ignore */ }
 }
 function isPlayerActive(){ var p=$("player"); return !!(p && p.classList.contains("active")); }
 async function reconnectHR(){            // silent reconnect to the ALREADY-PAIRED device (no chooser)
@@ -1213,7 +1223,7 @@ async function reconnectHR(){            // silent reconnect to the ALREADY-PAIR
   var char=await service.getCharacteristic("heart_rate_measurement");
   HR.char=char; char.addEventListener("characteristicvaluechanged", onHRValue);
   await char.startNotifications();
-  HR.connected=true; HR.reconnecting=false; HR.staleWarned=false; setHRUI(); toast("HR reconnected ✓");
+  HR.connected=true; HR.reconnecting=false; HR.staleWarned=false; setHRUI(); toast("HR reconnected ✓"); readBattery(server);
 }
 var reconnTimer=null;
 function startReconnectLoop(){           // exponential backoff (1→2→4…cap 10s) while still on the player
@@ -1448,8 +1458,16 @@ function setHRUI(){
       if($("gauge")){ var glow=zoneColor(mz), cc=activeCeiling(), inPerf=(cur&&cur.isTest)?(HR.bpm>=cc-4&&HR.bpm<=cc):(HR.bpm>=cc-GAME.PLATEAU_LO&&HR.bpm<=cc-GAME.PLATEAU_HI); if(inPerf) glow="#FFD24A"; $("gauge").style.filter="drop-shadow(0 0 18px "+glow+")"; } } }
   updateRec();
 }
+function battSuffix(){ return (HR.battery!=null && HR.battery<=20) ? (" · 🔋"+HR.battery+"%") : ""; }
+function applyStaleVisual(on){   // dim/grey the live number + gauge so a frozen reading doesn't look live
+  var m=$("mBpm"); if(m) m.style.opacity=on?"0.3":"";
+  var hb=$("homeBpm"); if(hb) hb.style.opacity=on?"0.3":"";
+  var g=$("gauge"); if(g){ g.style.opacity=on?"0.45":""; if(on) g.style.filter="grayscale(1)"; else if(g.style.filter && g.style.filter.indexOf("grayscale")>-1) g.style.filter="none"; }
+}
 function updateRec(){
   var el=$("recInd"); if(!el) return;
+  var stale = HR.connected && running && HR.lastSampleTs && (Date.now()-HR.lastSampleTs>6000);
+  applyStaleVisual(stale);
   if(!cur){ el.textContent=""; return; }
   var n=SESS?SESS.hr.length:0;
   if(!HR.connected){
@@ -1458,14 +1476,13 @@ function updateRec(){
     else { el.textContent="○ No strap — tap to connect"; el.style.color="var(--muted)"; }
     return;
   }
-  if(!running){ el.textContent="● Strap live — recording begins at Start"; el.style.color="var(--good)"; return; }
-  var stale = HR.lastSampleTs && (Date.now()-HR.lastSampleTs>6000);
+  if(!running){ el.textContent="● Strap live — recording begins at Start"+battSuffix(); el.style.color="var(--good)"; return; }
   if(stale){
     if(!HR.lastStaleBeep || Date.now()-HR.lastStaleBeep>=10000){ HR.lastStaleBeep=Date.now(); beep(330,220); }   // re-alert every ~10s while stale, not just once
-    el.textContent="⚠ HR signal lost — check the strap ("+n+" recorded)"; el.style.color="var(--over)";
+    el.textContent="⚠ HR signal lost — check the strap ("+n+" recorded)"+battSuffix(); el.style.color="var(--over)";
   } else {
     HR.lastStaleBeep=0;
-    el.textContent="● Recording · "+n+" readings"; el.style.color="var(--good)";
+    el.textContent="● Recording · "+n+" readings"+battSuffix(); el.style.color="var(--good)";
   }
 }
 function onHRDisconnect(){
