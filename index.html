@@ -367,7 +367,7 @@
       <div class="progwrap"><div class="progbar" id="progbar"></div></div>
       <div class="ghud" id="ghud"><span class="ghud-score">★ <b id="gScore">0</b></span><span class="ghud-combo"><i id="gComboFill"></i></span><span class="ghud-mult m1" id="gMult">1×</span></div>
       <div class="gbanner"><span class="gbtext" id="gPop"></span></div>
-      <div class="recind" id="recInd"></div>
+      <div class="recind" id="recInd" onclick="playerReconnect()" style="cursor:pointer;"></div>
     </div>
 
     <div class="stagecard walk" id="stageCard">
@@ -1185,7 +1185,41 @@ async function connectHR(){
     HR.char=char; char.addEventListener("characteristicvaluechanged", onHRValue);
     await char.startNotifications();
     HR.connected=true; setHRUI(); toast("HR connected ✓");
-  }catch(e){ toast("HR connect failed — try again"); }
+  }catch(e){
+    console.warn("HR connect failed:", e);
+    var n=e&&e.name;
+    if(n==="NotFoundError") return;                                   // user cancelled the chooser — stay silent
+    if(n==="NetworkError" || /already|in use|gatt/i.test((e&&e.message)||"")) toast("Strap busy — quit the Polar Beat app (or anything else using it) and retry");
+    else toast("HR connect failed — make sure the H10 is on, worn, and snug, then retry");
+  }
+}
+function isPlayerActive(){ var p=$("player"); return !!(p && p.classList.contains("active")); }
+async function reconnectHR(){            // silent reconnect to the ALREADY-PAIRED device (no chooser)
+  if(!HR.device || HR.connected) return;
+  var server=await HR.device.gatt.connect();
+  var service=await server.getPrimaryService("heart_rate");
+  var char=await service.getCharacteristic("heart_rate_measurement");
+  HR.char=char; char.addEventListener("characteristicvaluechanged", onHRValue);
+  await char.startNotifications();
+  HR.connected=true; HR.reconnecting=false; HR.staleWarned=false; setHRUI(); toast("HR reconnected ✓");
+}
+var reconnTimer=null;
+function startReconnectLoop(){           // exponential backoff (1→2→4…cap 10s) while still on the player
+  if(HR.reconnecting) return; HR.reconnecting=true; var delay=1000;
+  (function attempt(){
+    clearTimeout(reconnTimer);
+    if(HR.connected || !HR.device || !isPlayerActive()){ HR.reconnecting=false; setHRUI(); return; }
+    reconnectHR().catch(function(){
+      if(HR.connected || !isPlayerActive()){ HR.reconnecting=false; setHRUI(); return; }
+      delay=Math.min(10000, delay*2); reconnTimer=setTimeout(attempt, delay);
+    });
+    setHRUI();
+  })();
+}
+function playerReconnect(){              // tap the connection indicator to reconnect now
+  if(HR.connected) return;
+  if(HR.device){ reconnectHR().catch(function(){ startReconnectLoop(); }); }
+  else connectHR();                      // never paired this session → needs the chooser (a tap is a valid gesture)
 }
 function onHRValue(e){
   const v=e.target.value, flags=v.getUint8(0);
@@ -1406,17 +1440,27 @@ function updateRec(){
   var el=$("recInd"); if(!el) return;
   if(!cur){ el.textContent=""; return; }
   var n=SESS?SESS.hr.length:0;
-  if(!HR.connected){ el.textContent="○ No strap — connect for HR recording"; el.style.color="var(--muted)"; return; }
+  if(!HR.connected){
+    if(HR.reconnecting){ el.textContent="↻ Reconnecting to strap…"; el.style.color="var(--amber,#d9a400)"; }
+    else if(HR.device){ el.textContent="○ Strap dropped — tap to reconnect"; el.style.color="var(--muted)"; }
+    else { el.textContent="○ No strap — tap to connect"; el.style.color="var(--muted)"; }
+    return;
+  }
   if(!running){ el.textContent="● Strap live — recording begins at Start"; el.style.color="var(--good)"; return; }
   var stale = HR.lastSampleTs && (Date.now()-HR.lastSampleTs>6000);
   if(stale){
-    if(!HR.staleWarned){ HR.staleWarned=true; beep(330,220); }
+    if(!HR.lastStaleBeep || Date.now()-HR.lastStaleBeep>=10000){ HR.lastStaleBeep=Date.now(); beep(330,220); }   // re-alert every ~10s while stale, not just once
     el.textContent="⚠ HR signal lost — check the strap ("+n+" recorded)"; el.style.color="var(--over)";
   } else {
+    HR.lastStaleBeep=0;
     el.textContent="● Recording · "+n+" readings"; el.style.color="var(--good)";
   }
 }
-function onHRDisconnect(){ HR.connected=false; setHRUI(); toast("Strap disconnected — tap Reconnect"); }
+function onHRDisconnect(){
+  HR.connected=false; HR.char=null;
+  if(isPlayerActive() && HR.device){ toast("Strap dropped — reconnecting…"); startReconnectLoop(); }   // auto-recover mid-run
+  else { setHRUI(); toast("Strap disconnected — tap Reconnect"); }
+}
 
 /* ===================== AUDIO / WAKE ===================== */
 function unlockAudio(){
