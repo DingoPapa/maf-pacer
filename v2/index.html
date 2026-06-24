@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; media-src blob:; connect-src 'none'; base-uri 'none'; form-action 'none'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline'; img-src data:; media-src blob:; connect-src https://acavqbqaxktgetnwltfz.supabase.co wss://acavqbqaxktgetnwltfz.supabase.co; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <script>if(self!==top){try{top.location=self.location}catch(e){}document.documentElement.style.display="none";}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
@@ -620,11 +620,17 @@
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ============================================================
    MAF PACER — guided treadmill player + live HR + deviation log
    Claude edits the WORKOUTS below each cycle from your data.
    ============================================================ */
+
+/* ---- Supabase cloud backend (publishable/anon key is PUBLIC + safe to ship — Row-Level Security protects the data) ---- */
+const SUPABASE_URL = "https://acavqbqaxktgetnwltfz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_-F-E8fYqyql7DiZi7ODr5A_qzT1n6yH";
+var sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0, playerView:"game" };
 
