@@ -1016,7 +1016,7 @@ function newSession(w){
 /* ===================== PLAYER ===================== */
 function startWorkout(w){
   cur=w; idx=0; running=false; recentSpeed=4.0; HR.zone=null; HR.lastOverBeep=0; workoutMusicCued=false; currentSavedId=null;
-  SESS=newSession(w); RunGame.reset();
+  SESS=newSession(w); RunGame.reset(); clearDraft();
   $("plTitle").textContent=w.title;
   show("player"); loadStage(); $("btnPlay").textContent="Start";
   cueFirstTrack();   // pre-load track 1 so it can auto-start (iOS-gesture safe) when they hit Start
@@ -1091,6 +1091,7 @@ function startTick(){
   tick=setInterval(()=>{
     remain=Math.max(0,Math.round((endAt-Date.now())/1000));
     renderTimer(); updateProgress(); updateRec();
+    if(running && Date.now()-lastDraftT>15000){ lastDraftT=Date.now(); saveDraft(); }   // periodic mid-run snapshot
     if(remain<=3&&remain>0) beep(880,90);
     if(remain<=0) nextStageAuto();
   },200);
@@ -1121,7 +1122,7 @@ function computeStats(){
   let overTotal=0;
   for(let k=0;k<all.length;k++){
     const s=all[k]; if(per[s.idx]) per[s.idx].samples.push(s.bpm);
-    const dt = k>0?Math.min(5, all[k].t-all[k-1].t):0;
+    const dt = k>0?Math.max(0,Math.min(5, all[k].t-all[k-1].t)):0;   // clamp negative (Back-stage) like computeDerived
     if(s.bpm>cl){ overTotal+=dt; if(per[s.idx]) per[s.idx].over+=dt; }
   }
   per.forEach(p=>{ if(p.samples.length){ p.avg=Math.round(avgOf(p.samples)); p.max=Math.max(...p.samples); p.min=Math.min(...p.samples);} });
@@ -1135,6 +1136,8 @@ function downsample(){
   return out;
 }
 function endWorkout(manual){
+  if(SESS && SESS._ended) return;          // re-entrancy guard: don't re-run stats or clobber the summary form
+  if(SESS) SESS._ended=true;
   running=false; clearInterval(tick); releaseWake(); RunGame.stop(); $("btnPlay").textContent="Start";
   var cr=RunGame.commitCoins(); if(cr){ if(!PROFILE.game) PROFILE.game={version:1,xp:0,level:1,bestPoints:0,achievements:{},coins:0}; PROFILE.game.coins=(PROFILE.game.coins||0)+cr; saveProfile(); }
   SESS.endSec=Math.round(elapsedSec());
@@ -1435,7 +1438,8 @@ function beep(freq,ms){
 function chime(){ beep(660,140); setTimeout(()=>beep(990,220),160); }
 async function requestWake(){ try{ if("wakeLock" in navigator) wakeLock=await navigator.wakeLock.request("screen"); }catch(e){} }
 function releaseWake(){ try{ if(wakeLock){ wakeLock.release(); wakeLock=null; } }catch(e){} }
-document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"){ if(running) requestWake(); if(PROFILE.playerView!=="gauge" && $("player") && $("player").classList.contains("active")) RunGame.start(); } else { RunGame.stop(); } });
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"){ if(running) requestWake(); if(PROFILE.playerView!=="gauge" && $("player") && $("player").classList.contains("active")) RunGame.start(); } else { saveDraft(); RunGame.stop(); } });
+window.addEventListener("pagehide", function(){ saveDraft(); });   // last chance before iOS may evict the page
 
 /* ===================== SESSIONS / HISTORY ===================== */
 let pendingTitle="Workout", pendingIsTest=false, currentSavedId=null;
@@ -1444,7 +1448,21 @@ function sessions(){ return SESSIONS; }
 function numOrNull(v){ const n=parseFloat(v); return isNaN(n)?null:n; }
 /* --- IndexedDB session store (durable; replaces the localStorage quota-thinning that lost trace data) --- */
 function dbSessions(mode){ return mdb.transaction("sessions",mode).objectStore("sessions"); }
-function putSessionDB(rec){ if(!mdb) return; try{ dbSessions("readwrite").put(rec); }catch(e){} }
+var pendingSaves=[];   // records buffered until IndexedDB opens (cold-start safety)
+function onSaveFail(rec, err){
+  console.warn("putSessionDB failed:", err);
+  var n=(err&&err.name)||"";
+  toast(n==="QuotaExceededError" ? "⚠ Storage full — run NOT saved. Free space (More → Music / clear old runs)." : "⚠ Couldn't save this run to the device.");
+}
+function putSessionDB(rec){
+  if(!mdb){ pendingSaves.push(rec); return; }                  // buffer; flushed when DB opens
+  try{
+    var tx=mdb.transaction("sessions","readwrite");
+    var req=tx.objectStore("sessions").put(rec);
+    req.onerror=function(){ onSaveFail(rec, req.error); };     // surface quota / write failures instead of swallowing
+    tx.onabort =function(){ onSaveFail(rec, tx.error); };
+  }catch(e){ onSaveFail(rec, e); }
+}
 function delSessionDB(id){ if(!mdb) return; try{ dbSessions("readwrite").delete(id); }catch(e){} }
 function loadSessionsFromDB(){
   return new Promise(function(res){
@@ -1507,9 +1525,45 @@ function autoSaveSession(){            // called at end of every run — saves i
   rec.game = scoreRec(rec);
   rec.updated_at=new Date().toISOString();
   SESSIONS.unshift(rec); putSessionDB(rec); currentSavedId=rec.id;
+  clearDraft();                        // run is durably saved — drop the in-progress draft
   enqueueSession(rec);                 // P2: queue for cloud (no-op if signed out)
   lastProg = recomputeProgression();
   renderHistory();
+}
+/* ---- mid-run DRAFT persistence: a backgrounded/crashed run is never lost ---- */
+var lastDraftT=0;
+function saveDraft(){
+  if(!SESS) return;
+  if(!running && !(SESS.hr && SESS.hr.length)) return;        // only an active/started run
+  try{
+    localStorage.setItem("maf_draft", JSON.stringify({
+      v:1, ts:Date.now(), title:(cur?cur.title:SESS.title), isTest:!!SESS.isTest,
+      ceiling:activeCeiling(), units:PROFILE.units,
+      plan:SESS.plan, actuals:SESS.actuals, adjustments:SESS.adjustments,
+      hr:SESS.hr, rr:SESS.rr, idx:idx, endSec:Math.round(elapsedSec()), live:SESS.live
+    }));
+  }catch(e){}
+}
+function clearDraft(){ try{ localStorage.removeItem("maf_draft"); }catch(e){} }
+function finalizeDraft(d){            // rebuild a session record from a recovered draft and save it
+  var savedCur=cur, savedSESS=SESS;
+  cur={ cap:d.ceiling, isTest:!!d.isTest, title:d.title };
+  SESS={ title:d.title, isTest:!!d.isTest, plan:d.plan||[], actuals:d.actuals||[], adjustments:d.adjustments||[], hr:d.hr||[], rr:d.rr||[], endSec:d.endSec||0, stats:null, live:d.live||{points:0} };
+  SESS.stats=computeStats();
+  pendingTitle=d.title||"Workout"; pendingIsTest=!!d.isTest;
+  ["inMaf","inRpe","inNotes"].forEach(function(i){ if($(i)) $(i).value=""; });
+  autoSaveSession();
+  cur=savedCur; SESS=savedSESS; clearDraft();
+}
+function recoverDraft(){
+  var raw; try{ raw=localStorage.getItem("maf_draft"); }catch(e){ return; }
+  if(!raw) return;
+  var d; try{ d=JSON.parse(raw); }catch(e){ clearDraft(); return; }
+  if(!d || !d.hr || (d.endSec||0)<10){ clearDraft(); return; }       // nothing worth recovering
+  var mins=Math.round((d.endSec||0)/60);
+  if(confirm("Found an unfinished run (~"+mins+" min) that didn't get saved — your phone may have closed the app mid-run. Save it to your history now?")){
+    try{ finalizeDraft(d); toast("Recovered run saved ✓"); }catch(e){ clearDraft(); }
+  } else { clearDraft(); }
 }
 function commitDetails(){             // write optional notes/RPE/MAF-speed into the already-saved record
   if(!currentSavedId) return;
@@ -1769,7 +1823,7 @@ function openDB(){
         if(!db.objectStoreNames.contains("sessions")){ var s=db.createObjectStore("sessions",{keyPath:"id"}); s.createIndex("date","date"); s.createIndex("isTest","isTest"); }
         if(!db.objectStoreNames.contains("syncq")) db.createObjectStore("syncq",{keyPath:"qid"});   // P2 durable push queue
       };
-      r.onsuccess=function(e){ mdb=e.target.result; res(mdb); };
+      r.onsuccess=function(e){ mdb=e.target.result; try{ var ps=pendingSaves; pendingSaves=[]; ps.forEach(function(rc){ putSessionDB(rc); }); }catch(e2){} res(mdb); };
       r.onerror=function(){ rej(r.error); };
     }catch(e){ rej(e); }
   });
@@ -1933,7 +1987,7 @@ function initMusic(){
     .then(function(){ return migrateSessions(); })
     .then(function(){ return loadSessionsFromDB(); })
     .then(function(){ return loadQ(); })
-    .then(function(){ backfillGame(); recomputeProgression(); renderHistory(); renderHome(); sessionsReady=true; runSessionsReadyCbs(); return loadPlaylist(); })
+    .then(function(){ backfillGame(); recomputeProgression(); renderHistory(); renderHome(); sessionsReady=true; runSessionsReadyCbs(); recoverDraft(); return loadPlaylist(); })
     .then(function(){ renderMusic(); })
     .catch(function(){ try{ backfillGame(); recomputeProgression(); }catch(e){} renderHistory(); renderHome(); renderMusic(); sessionsReady=true; runSessionsReadyCbs(); });
   if(navigator.storage && navigator.storage.persist){ try{ navigator.storage.persist(); }catch(e){} }   // request durable storage
