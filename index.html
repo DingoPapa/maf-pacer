@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline'; img-src data:; media-src blob:; connect-src https://acavqbqaxktgetnwltfz.supabase.co wss://acavqbqaxktgetnwltfz.supabase.co; base-uri 'none'; form-action 'none'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; media-src blob:; connect-src https://acavqbqaxktgetnwltfz.supabase.co wss://acavqbqaxktgetnwltfz.supabase.co; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <script>if(self!==top){try{top.location=self.location}catch(e){}document.documentElement.style.display="none";}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
@@ -528,7 +528,10 @@
     </div>
     <h2>Privacy &amp; your data</h2>
     <div class="card">
-      <div class="sub" style="line-height:1.5;">Your runs and settings live on this device, and — only if you sign in — back up to your own private cloud account over HTTPS. Each account can only ever see its own data. Export anytime with the buttons above.</div>
+      <div style="line-height:1.6; font-size:13px;">
+        <div style="font-weight:700; margin-bottom:6px;">Private by default 🔒</div>
+        <div class="sub">• No ads, analytics, trackers, or third parties — the app talks only to its own secure backend (your private account).<br>• Your runs &amp; settings live on this device; they back up to the cloud only if you sign in.<br>• Only you can ever see your data — enforced by the database (row-level security), not just a promise.<br>• Encrypted in transit (HTTPS). We store only your workouts, your settings, and the email you sign in with — no birthday, location, or contacts.<br>• You're in control — export or delete everything, anytime.</div>
+      </div>
       <button class="btn-danger" style="width:100%; margin-top:10px;" onclick="deleteCloudData()">Delete my cloud data</button>
       <div class="sub" style="margin-top:8px; font-size:12px;">Removes your runs &amp; profile from the cloud and signs you out. Runs on this device stay until you clear them in Settings. To fully remove your login, just ask.</div>
     </div>
@@ -635,7 +638,8 @@
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script><!-- self-hosted (no third-party CDN) -->
+
 <script>
 /* ============================================================
    MAF PACER — guided treadmill player + live HR + deviation log
