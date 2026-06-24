@@ -698,6 +698,7 @@ const HR = { device:null, char:null, bpm:null, connected:false, zone:null, lastO
 function load(){
   try{ Object.assign(PROFILE, JSON.parse(localStorage.getItem("maf_profile")||"{}")); }catch(e){}
   applyProfileUI(); renderWorkouts(); checkEnv(); initMusic(); loadRunnerSprites(); loadDogSprites(); loadSceneSprites(); devInit(); authInit();   // renderHistory runs after IndexedDB loads (initMusic)
+  window.addEventListener("online", function(){ flushQueue(); updateSyncStatus(); }); window.addEventListener("offline", updateSyncStatus); setInterval(updateSyncStatus, 60000);   // P2: flush on reconnect + keep status fresh
 }
 /* ===================== DEV / TEST PANEL (gated by #dev in the URL) ===================== */
 var DEV={sim:false,hr:130,timer:null};
@@ -716,7 +717,11 @@ function escTxt(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){ 
 function authInit(){
   if(!sb){ renderAccount(); return; }
   sb.auth.getSession().then(function(r){ authUser=(r.data&&r.data.session)?r.data.session.user:null; renderAccount(); });
-  sb.auth.onAuthStateChange(function(ev, session){ authUser = session?session.user:null; renderAccount(); });   // P2: trigger cloud sync on SIGNED_IN here
+  sb.auth.onAuthStateChange(function(ev, session){ authUser = session?session.user:null; renderAccount();
+    if(ev==="SIGNED_OUT") syncNow._announced=false;
+    if(authUser && (ev==="SIGNED_IN" || ev==="INITIAL_SESSION")){ whenSessionsReady(function(){ syncNow(); }); }   // reconcile: uploads local runs + pulls cloud
+    updateSyncStatus();
+  });
 }
 function authMsg(t, ok){ var el=$("authMsg"); if(el){ el.textContent=t||""; el.style.color = ok?"var(--z-aerobic)":"var(--z-over)"; } }
 function authSignIn(){ if(!sb){ authMsg("Cloud unavailable — you're offline."); return; } var e=(($("authEmail")||{}).value||"").trim(), p=($("authPass")||{}).value||""; if(!e||!p){ authMsg("Enter your email and password."); return; } authMsg("Signing in…", true); sb.auth.signInWithPassword({email:e, password:p}).then(function(r){ if(r.error) authMsg(r.error.message); else toast("Signed in"); }); }
@@ -727,7 +732,10 @@ function renderAccount(){
   var el=$("acctCard"); if(!el) return;
   if(!sb){ el.innerHTML='<div class="sub">Cloud sync is unavailable (couldn\'t reach Supabase). The app works fully offline — your data stays on this device.</div>'; return; }
   if(authUser){
-    el.innerHTML='<div class="sub" style="margin-bottom:10px;">✓ Signed in as <b>'+escTxt(authUser.email)+'</b><br>Your runs back up &amp; sync to your account across devices.</div><button class="btn-ghost" style="width:100%;" onclick="authSignOut()">Sign out</button>';
+    el.innerHTML='<div class="sub" style="margin-bottom:10px;">✓ Signed in as <b>'+escTxt(authUser.email)+'</b><br>Your runs back up &amp; sync to your account across devices.</div>'+
+      '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;"><span id="syncStatus" class="sub" style="font-size:12px;"></span><button class="btn-ghost" style="font-size:12px; padding:6px 12px; width:auto;" onclick="syncNow()">Sync now</button></div>'+
+      '<button class="btn-ghost" style="width:100%;" onclick="authSignOut()">Sign out</button>';
+    updateSyncStatus();
   } else {
     el.innerHTML=''+
       '<div class="sub" style="margin-bottom:10px;">Sign in to back up &amp; sync your runs across devices. The app works fine without an account — your data just stays on this device.</div>'+
@@ -738,7 +746,154 @@ function renderAccount(){
       '<div class="sub" id="authMsg" style="margin-top:10px; min-height:16px;"></div>';
   }
 }
-function saveProfile(){ localStorage.setItem("maf_profile", JSON.stringify(PROFILE)); }
+
+/* ===================== P2 — CLOUD SYNC (Supabase, offline-first) ===================== */
+/* IndexedDB stays the local source of truth. A durable queue (IDB store "syncq") upserts
+   changes to Supabase under RLS — idempotent by client id, so replays are no-ops and the
+   same run never double-counts. syncNow() does a full two-way reconcile (push local-ahead,
+   pull server-ahead). Progression is ALWAYS re-derived from the session union, never trusted. */
+var QUEUE=[];            // in-memory mirror of the durable IDB "syncq" store
+var syncBusy=false;      // single-flight guard for flushQueue()
+var flushP=null, retryT=null;   // in-flight drain promise (coalesce concurrent calls) + pending-backoff retry timer
+var lastSyncAt=0;        // epoch ms of last successful reconcile
+var sessionsReady=false, _srCbs=[];
+function whenSessionsReady(cb){ if(sessionsReady){ try{cb();}catch(e){} } else _srCbs.push(cb); }
+function runSessionsReadyCbs(){ var cbs=_srCbs; _srCbs=[]; cbs.forEach(function(f){ try{f();}catch(e){} }); }
+
+/* ---- row builders (pure) ---- */
+function sessionToRow(rec){ var g=rec.game||{};
+  return { id:rec.id, user_id:authUser.id, date:rec.date, is_test:!!rec.isTest, title:rec.title||"",
+    duration_sec:rec.durationSec|0, avg:rec.avg, max:rec.max, min:rec.min,
+    points:(g.points!=null?g.points:null), grade:(g.grade!=null?g.grade:null),
+    updated_at:rec.updated_at||new Date().toISOString(), data:rec }; }
+function profileSettings(){ return { ceiling:PROFILE.ceiling, units:PROFILE.units, sound:PROFILE.sound, warnMargin:PROFILE.warnMargin, goalSpeed:PROFILE.goalSpeed, playerView:PROFILE.playerView }; }
+function sessionItem(rec){ return { qid:"q_"+rec.id, kind:"session", id:rec.id, row:sessionToRow(rec), state:"pending", tries:0, ts:Date.now() }; }
+function profileItem(){ return { qid:"q_profile", kind:"profile", id:"profile", row:{ user_id:authUser.id, settings:profileSettings(), game:(PROFILE.game||null), updated_at:new Date().toISOString() }, state:"pending", tries:0, ts:Date.now() }; }
+
+/* ---- durable queue store ("syncq") ---- */
+function dbSyncq(mode){ return mdb.transaction("syncq",mode).objectStore("syncq"); }
+function putQ(item){ if(!mdb) return; try{ dbSyncq("readwrite").put(item); }catch(e){} }
+function delQ(qid){ if(!mdb) return; try{ dbSyncq("readwrite").delete(qid); }catch(e){} }
+function loadQ(){ return new Promise(function(res){ QUEUE=[]; if(!mdb){ res([]); return; }
+  try{ var r=dbSyncq("readonly").openCursor();
+    r.onsuccess=function(e){ var c=e.target.result; if(c){ var v=c.value; if(v.state!=="confirmed"){ v.state="pending"; QUEUE.push(v); } c.continue(); } else res(QUEUE); };
+    r.onerror=function(){ res([]); };
+  }catch(e){ res([]); } }); }
+function qPush(item){ var i=QUEUE.findIndex(function(q){return q.qid===item.qid;}); if(i>=0) QUEUE[i]=item; else QUEUE.push(item); putQ(item); }
+
+/* ---- enqueue + flush (never drops an item until Supabase confirms) ---- */
+function enqueueSession(rec){ if(!authUser) return; qPush(sessionItem(rec)); flushQueue(); updateSyncStatus(); }
+function enqueueProfile(){ if(!authUser) return; qPush(profileItem()); flushQueue(); updateSyncStatus(); }
+function qReady(q){ return q.state!=="confirmed" && (!q.nextRetryAt || q.nextRetryAt<=Date.now()); }
+function scheduleRetry(){   // wake up when the soonest backed-off item is due
+  if(retryT) return;
+  var soon=null; QUEUE.forEach(function(q){ if(q.state!=="confirmed" && q.nextRetryAt){ if(soon==null||q.nextRetryAt<soon) soon=q.nextRetryAt; } });
+  if(soon==null) return;
+  retryT=setTimeout(function(){ retryT=null; flushQueue(); }, Math.max(500, soon-Date.now()));
+}
+function flushQueue(){
+  if(syncBusy) return flushP || Promise.resolve();                       // coalesce concurrent callers onto the live drain
+  if(!sb || !authUser || !navigator.onLine){ updateSyncStatus(); return Promise.resolve(); }
+  if(!QUEUE.some(qReady)){ updateSyncStatus(); scheduleRetry(); return Promise.resolve(); }
+  syncBusy=true; updateSyncStatus();
+  function drain(){
+    var item=QUEUE.find(qReady);                                          // next item NOT in backoff (skips poison items)
+    if(!item){ syncBusy=false; flushP=null; updateSyncStatus(); scheduleRetry(); return Promise.resolve(); }
+    item.state="inflight"; putQ(item);
+    var table=(item.kind==="profile")?"profiles":"sessions";
+    var p; try{ p=sb.from(table).upsert(item.row); }catch(e){ p=Promise.reject(e); }   // guard a synchronous throw
+    return Promise.resolve(p).then(function(r){
+      if(r && r.error) throw r.error;
+      delQ(item.qid); var k=QUEUE.indexOf(item); if(k>=0) QUEUE.splice(k,1);            // confirmed -> drop durably
+      item.nextRetryAt=0;
+      return drain();                                                                   // continue (incl. items added mid-flush)
+    }).catch(function(){
+      item.state="pending"; item.tries=(item.tries||0)+1;                               // NEVER drop; stays durable
+      item.nextRetryAt=Date.now()+Math.min(30000,1000*Math.pow(2,Math.min(item.tries,5)));  // per-item backoff (cap 30s)
+      putQ(item);
+      return drain();                                                                   // skip past it; keep draining healthy items
+    });
+  }
+  flushP=drain();
+  return flushP;
+}
+function syncPush(){ return flushQueue(); }
+
+/* ---- pull profile: settings LWW; coins kept (max); xp/level/achievements re-derived after ---- */
+function pullProfile(){
+  if(!sb||!authUser) return Promise.resolve();
+  return sb.from("profiles").select("settings,game,updated_at").eq("user_id",authUser.id).maybeSingle().then(function(r){
+    if(r.error||!r.data) return; var rem=r.data;
+    if(rem.settings && (!PROFILE._settingsAt || rem.updated_at>PROFILE._settingsAt)){ Object.assign(PROFILE, rem.settings); PROFILE._settingsAt=rem.updated_at; try{ applyProfileUI(); }catch(e){} }
+    if(rem.game){ if(!PROFILE.game) PROFILE.game={version:1,xp:0,level:1,bestPoints:0,achievements:{},coins:0};
+      if(rem.game.coins!=null) PROFILE.game.coins=Math.max(rem.game.coins, PROFILE.game.coins||0);
+      if(rem.game.achievements){ var la=PROFILE.game.achievements||{}, ra=rem.game.achievements, mg={};   // merge by EARLIEST firstDate (never regress a date)
+        Object.keys(ra).concat(Object.keys(la)).forEach(function(id){ var a=ra[id], b=la[id]; mg[id]=(a&&b)?(((a.firstDate||"~")<(b.firstDate||"~"))?a:b):(a||b); });
+        PROFILE.game.achievements=mg; } }
+  }).catch(function(){});
+}
+
+/* ---- two-way session reconcile (full + idempotent): push local-ahead, pull server-ahead ---- */
+function reconcileSessions(){
+  if(!sb||!authUser) return Promise.resolve({changed:false,uploaded:0});
+  return sb.from("sessions").select("id,updated_at").limit(5000).then(function(r){   // SUMMARY only — never data/hr
+    if(r.error) throw r.error;
+    var server={}; (r.data||[]).forEach(function(s){ server[s.id]=s.updated_at; });
+    var uploaded=0;
+    SESSIONS.forEach(function(rec){ if(!rec||!rec.id) return;
+      if(!rec.updated_at){ rec.updated_at=rec.date||new Date().toISOString(); putSessionDB(rec); }
+      var sv=server[rec.id];
+      if(sv==null || rec.updated_at>sv){ qPush(sessionItem(rec)); uploaded++; } });   // local missing/newer -> upload
+    var need=[]; Object.keys(server).forEach(function(id){ var loc=SESSIONS.find(function(x){return x.id===id;});
+      if(!loc || !loc.updated_at || server[id]>loc.updated_at) need.push(id); });        // server missing/newer -> download
+    var pushP = uploaded>0 ? flushQueue() : Promise.resolve();
+    return pushP.then(function(){ if(!need.length) return {changed:uploaded>0, uploaded:uploaded};
+      return fetchFull(need).then(function(){ return {changed:true, uploaded:uploaded}; }); });
+  });
+}
+function fetchFull(ids){   // pull full records (data jsonb) by id, in chunks
+  var chunks=[]; for(var i=0;i<ids.length;i+=50) chunks.push(ids.slice(i,i+50));
+  return chunks.reduce(function(pr,ch){ return pr.then(function(){
+    return sb.from("sessions").select("id,updated_at,data").in("id",ch).then(function(r2){
+      if(r2.error) throw r2.error;
+      (r2.data||[]).forEach(function(full){ var rec=full.data; if(!rec||!rec.id) return; rec.updated_at=full.updated_at;
+        var i=SESSIONS.findIndex(function(x){return x.id===rec.id;}); if(i>=0) SESSIONS[i]=rec; else SESSIONS.push(rec); putSessionDB(rec); });
+      SESSIONS.sort(function(a,b){return (a.date<b.date)?1:-1;});
+    }); }); }, Promise.resolve());
+}
+
+/* ---- full reconcile (push backlog -> pull profile -> reconcile sessions -> re-derive progression) ---- */
+function syncNow(){
+  if(!sb||!authUser||!navigator.onLine){ updateSyncStatus(); return Promise.resolve(); }
+  if(syncNow._busy) return syncNow._p||Promise.resolve();
+  syncNow._busy=true; updateSyncStatus();
+  syncNow._p=syncPush()
+    .then(function(){ return pullProfile(); })
+    .then(function(){ return reconcileSessions(); })
+    .then(function(res){
+      backfillGame(); recomputeProgression();           // always re-derive + persist (idempotent) so pulled coins/achievements survive reload
+      if(res && res.changed){ renderHistory(); renderHome(); }
+      if(res && res.uploaded>0 && !syncNow._announced){ syncNow._announced=true; toast("☁️ Backed up "+res.uploaded+" run"+(res.uploaded===1?"":"s")); }
+      lastSyncAt=Date.now();
+    })
+    .catch(function(){})    // leave queue intact; backoff handles retries
+    .then(function(){ syncNow._busy=false; updateSyncStatus(); });
+  return syncNow._p;
+}
+
+/* ---- status string on the Account card ---- */
+function syncStatusText(){
+  if(!sb || !authUser) return "";
+  if(!navigator.onLine) return "Offline — saved on this device";
+  var pend=QUEUE.filter(function(q){return q.state!=="confirmed";}).length;
+  if(syncBusy || syncNow._busy) return "Syncing…";
+  if(pend>0) return pend+" change"+(pend===1?"":"s")+" pending";
+  if(lastSyncAt){ var m=Math.round((Date.now()-lastSyncAt)/60000); return "Synced "+(m<1?"just now":(m+"m ago")); }
+  return "Signed in";
+}
+function updateSyncStatus(){ var el=$("syncStatus"); if(el) el.textContent=syncStatusText(); }
+
+function saveProfile(){ localStorage.setItem("maf_profile", JSON.stringify(PROFILE)); enqueueProfile(); }
 function applyProfileUI(){
   $("ceilBig").textContent=PROFILE.ceiling;
   $("zoneTxt").textContent=(PROFILE.ceiling-10)+"–"+PROFILE.ceiling;
@@ -1287,8 +1442,10 @@ function computeDerived(rec){
 }
 function autoSaveSession(){            // called at end of every run — saves immediately to IndexedDB
   if(!SESS) return;
+  if(SESS._saved) return;             // re-entrancy guard: one run saves at most once (a double Finish / final-tick race can't mint two records)
   var st=SESS.stats;
   if((SESS.endSec||0)<10 && (!st||st.avg==null) && (!SESS.adjustments||!SESS.adjustments.length)){ currentSavedId=null; return; } // nothing meaningful
+  SESS._saved=true;
   var rec={
     schema:2, id:"s"+Date.now(), date:new Date().toISOString(), title:pendingTitle, isTest:pendingIsTest,
     ceiling:activeCeiling(), units:PROFILE.units, durationSec:SESS.endSec,
@@ -1302,13 +1459,15 @@ function autoSaveSession(){            // called at end of every run — saves i
   };
   rec.derived = computeDerived(rec);
   rec.game = scoreRec(rec);
+  rec.updated_at=new Date().toISOString();
   SESSIONS.unshift(rec); putSessionDB(rec); currentSavedId=rec.id;
+  enqueueSession(rec);                 // P2: queue for cloud (no-op if signed out)
   lastProg = recomputeProgression();
   renderHistory();
 }
 function commitDetails(){             // write optional notes/RPE/MAF-speed into the already-saved record
   if(!currentSavedId) return;
-  for(var i=0;i<SESSIONS.length;i++){ if(SESSIONS[i].id===currentSavedId){ SESSIONS[i].mafSpeed=numOrNull($("inMaf").value); SESSIONS[i].rpe=numOrNull($("inRpe").value); SESSIONS[i].notes=$("inNotes").value.trim(); putSessionDB(SESSIONS[i]); renderHistory(); return; } }
+  for(var i=0;i<SESSIONS.length;i++){ if(SESSIONS[i].id===currentSavedId){ SESSIONS[i].mafSpeed=numOrNull($("inMaf").value); SESSIONS[i].rpe=numOrNull($("inRpe").value); SESSIONS[i].notes=$("inNotes").value.trim(); SESSIONS[i].updated_at=new Date().toISOString(); putSessionDB(SESSIONS[i]); enqueueSession(SESSIONS[i]); renderHistory(); return; } }
 }
 
 /* ===================== ZONE GAME ENGINE ===================== */
@@ -1395,7 +1554,7 @@ function recomputeProgression(){
   qd.streak_3     = (weekStreak()>=3) ? (asc.length?asc[asc.length-1].date:new Date().toISOString()) : null;
   qd.test_pr      = fdw(function(p,s){ if(!(s.isTest&&s.derived&&s.derived.mafTestSpeed!=null)) return false; var b=0; p.forEach(function(x){ if(x.derived&&x.derived.mafTestSpeed>b) b=x.derived.mafTestSpeed; }); return s.derived.mafTestSpeed>=b; });
   var newUnlocks=[];
-  ACHIEVEMENTS.forEach(function(a){ if(g.achievements[a.id]) return; if(qd[a.id]){ g.achievements[a.id]={firstDate:qd[a.id]}; newUnlocks.push(a.id); } });
+  ACHIEVEMENTS.forEach(function(a){ if(!qd[a.id]) return; if(!g.achievements[a.id]){ g.achievements[a.id]={firstDate:qd[a.id]}; newUnlocks.push(a.id); } else if(qd[a.id]<g.achievements[a.id].firstDate){ g.achievements[a.id].firstDate=qd[a.id]; } });   // re-minimize firstDate when an older qualifying run downloads
   saveProfile();
   return { level:g.level, leveledUp:g.level>prevLevel, xp:totalXp, bestPoints:best, newBest:best>prevBest, newUnlocks:newUnlocks };
 }
@@ -1472,7 +1631,7 @@ function renderHistory(){
     var el=document.createElement("div"); el.className="histitem";
     var pr=(r.mafSpeed!=null && r.mafSpeed===bestMaf())?'<span class="badge">🏅 best pace</span>':'';
     var gc=(r.game&&r.game.grade)?'<span class="gchip grade-'+r.game.grade+'">'+r.game.grade+(r.game.approx?'~':'')+'</span>':'';
-    var info=document.createElement("div"); info.className="hmain"; info.innerHTML="<b>"+r.title.replace(/^\d+ · /,"")+"</b>"+gc+pr+"<br><small>"+dt+" · "+(bits.join(" · ")||"no HR logged")+"</small><div class=\"feed-insight\">"+runInsight(r)+"</div>"; info.onclick=function(){ openSession(r.id); };
+    var info=document.createElement("div"); info.className="hmain"; info.innerHTML="<b>"+escTxt(r.title.replace(/^\d+ · /,""))+"</b>"+gc+pr+"<br><small>"+dt+" · "+(bits.join(" · ")||"no HR logged")+"</small><div class=\"feed-insight\">"+runInsight(r)+"</div>"; info.onclick=function(){ openSession(r.id); };
     var cp=document.createElement("button"); cp.className="btn-ghost"; cp.style.cssText="flex:0;padding:4px 10px;font-size:15px;"; cp.textContent="📋"; cp.title="Copy this session's log (to send to Claude)"; cp.onclick=function(){ copySavedLog(i); };
     var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.title="Delete this session"; del.onclick=function(){ deleteSession(i); };
     el.appendChild(info); el.appendChild(cp); el.appendChild(del); list.appendChild(el);
@@ -1558,10 +1717,11 @@ let mdb=null, playlist=[], curTrack=-1, curUrl=null, musicPlaying=false, duckT=n
 function openDB(){
   return new Promise(function(res,rej){
     try{
-      var r=indexedDB.open("mafMusic",2);
+      var r=indexedDB.open("mafMusic",3);
       r.onupgradeneeded=function(e){ var db=e.target.result;
         if(!db.objectStoreNames.contains("tracks")) db.createObjectStore("tracks",{keyPath:"id"});
         if(!db.objectStoreNames.contains("sessions")){ var s=db.createObjectStore("sessions",{keyPath:"id"}); s.createIndex("date","date"); s.createIndex("isTest","isTest"); }
+        if(!db.objectStoreNames.contains("syncq")) db.createObjectStore("syncq",{keyPath:"qid"});   // P2 durable push queue
       };
       r.onsuccess=function(e){ mdb=e.target.result; res(mdb); };
       r.onerror=function(){ rej(r.error); };
@@ -1726,9 +1886,10 @@ function initMusic(){
   openDB()
     .then(function(){ return migrateSessions(); })
     .then(function(){ return loadSessionsFromDB(); })
-    .then(function(){ backfillGame(); recomputeProgression(); renderHistory(); renderHome(); return loadPlaylist(); })
+    .then(function(){ return loadQ(); })
+    .then(function(){ backfillGame(); recomputeProgression(); renderHistory(); renderHome(); sessionsReady=true; runSessionsReadyCbs(); return loadPlaylist(); })
     .then(function(){ renderMusic(); })
-    .catch(function(){ try{ backfillGame(); recomputeProgression(); }catch(e){} renderHistory(); renderHome(); renderMusic(); });
+    .catch(function(){ try{ backfillGame(); recomputeProgression(); }catch(e){} renderHistory(); renderHome(); renderMusic(); sessionsReady=true; runSessionsReadyCbs(); });
   if(navigator.storage && navigator.storage.persist){ try{ navigator.storage.persist(); }catch(e){} }   // request durable storage
 }
 
@@ -1750,7 +1911,7 @@ function renderHome(){
   if($("homeLast")){
     if(last){ var d=new Date(last.date).toLocaleDateString(undefined,{month:"short",day:"numeric"});
       var z=last.derived&&last.derived.zoneSec, inz=z?Math.round((z.aerobic+z.sweet)/60):null;
-      $("homeLast").innerHTML="<b>"+last.title.replace(/^\d+ · /,"")+"</b> · "+d+(last.avg!=null?(" · avg "+last.avg+" bpm"):"")+(inz!=null?(" · "+inz+"m in zone"):"");
+      $("homeLast").innerHTML="<b>"+escTxt(last.title.replace(/^\d+ · /,""))+"</b> · "+d+(last.avg!=null?(" · avg "+last.avg+" bpm"):"")+(inz!=null?(" · "+inz+"m in zone"):"");
       drawSpark(last,$("homeSpark"));
     } else { $("homeLast").textContent="No runs yet — your first one will show here."; if($("homeSpark")) $("homeSpark").innerHTML=""; }
   }
@@ -1770,7 +1931,7 @@ function drawSpark(rec, el){
     '<line x1="0" y1="'+cy+'" x2="'+W+'" y2="'+cy+'" stroke="rgba(255,90,82,.55)" stroke-width="1" stroke-dasharray="4 3"/>'+
     '<polyline points="'+pts.join(" ")+'" fill="none" stroke="#9fb4ff" stroke-width="2"/></svg>';
 }
-function kv(k,v){ return '<div class="kv"><span class="k">'+k+'</span><span>'+v+'</span></div>'; }
+function kv(k,v){ return '<div class="kv"><span class="k">'+escTxt(k)+'</span><span>'+escTxt(v)+'</span></div>'; }
 function openSession(id){
   detailRec=SESSIONS.find(function(s){return s.id===id;});
   if(!detailRec){ toast("Session not found"); return; }
@@ -1798,7 +1959,7 @@ function renderDetail(r){
     var dev=(p.actual.speed!==p.plan.speed)||(p.actual.incline!==p.plan.incline);
     var sp=(p.actual.speed==null?"hold":p.actual.speed)+"/"+p.actual.incline+"%";
     var hr=p.avg!=null?(" · HR "+p.avg+"/"+p.max):"";
-    return '<div class="kv"><span class="k">'+p.name+(dev?" *":"")+'</span><span>'+sp+hr+'</span></div>';
+    return '<div class="kv"><span class="k">'+escTxt(p.name)+(dev?" *":"")+'</span><span>'+sp+hr+'</span></div>';
   }).join("");
   $("detailStages").innerHTML=ps||'<div class="empty">No stage data.</div>';
 }
