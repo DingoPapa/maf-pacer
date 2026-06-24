@@ -1113,6 +1113,18 @@ function nextStageAuto(){
 }
 function skipStage(){ if(idx<cur.stages.length-1){ idx++; loadStage(); if(running) startTick(); } else endWorkout(true); }
 function prevStage(){ if(idx>0){ idx--; loadStage(); if(running) startTick(); } }
+function catchUp(){                       // after the app was backgrounded, jump the stage clock to real wall-clock
+  if(!running || !cur) return;
+  clearInterval(tick);                    // stop the about-to-resume tick so it can't double-advance one-stage-per-200ms
+  var over=Math.round((Date.now()-endAt)/1000);
+  if(over<=0){ startTick(); return; }     // still inside the current stage — just resume cleanly
+  while(idx<cur.stages.length-1){
+    idx++; var sec=cur.stages[idx].sec;
+    if(over<sec){ loadStage(); remain=sec-over; renderTimer(); updateProgress(); startTick(); return; }   // landed inside this stage
+    over-=sec;                            // whole stage elapsed while backgrounded — skip it
+  }
+  endWorkout(false);                       // overshoot ran past the last stage → finish
+}
 function flash(){ const c=$("stageCard"); c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash"); }
 
 /* ===================== STATS ===================== */
@@ -1482,7 +1494,7 @@ function beep(freq,ms){
 function chime(){ beep(660,140); setTimeout(()=>beep(990,220),160); }
 async function requestWake(){ try{ if("wakeLock" in navigator) wakeLock=await navigator.wakeLock.request("screen"); }catch(e){} }
 function releaseWake(){ try{ if(wakeLock){ wakeLock.release(); wakeLock=null; } }catch(e){} }
-document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"){ if(running) requestWake(); if(PROFILE.playerView!=="gauge" && $("player") && $("player").classList.contains("active")) RunGame.start(); } else { saveDraft(); RunGame.stop(); } });
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"){ if(running){ requestWake(); catchUp(); } if(PROFILE.playerView!=="gauge" && $("player") && $("player").classList.contains("active")) RunGame.start(); } else { saveDraft(); RunGame.stop(); } });
 window.addEventListener("pagehide", function(){ saveDraft(); });   // last chance before iOS may evict the page
 
 /* ===================== SESSIONS / HISTORY ===================== */
@@ -2027,6 +2039,8 @@ function initMusic(){
   a.addEventListener("pause", function(){ musicPlaying=false; updateMusicUI(); });
   a.addEventListener("timeupdate", onTimeUpdate);
   a.addEventListener("loadedmetadata", onTimeUpdate);
+  a.addEventListener("error", function(){ if(workoutMusicCued) nextTrack(); });                          // skip an undecodable track instead of stopping the playlist
+  a.addEventListener("stalled", function(){ try{ if(musicPlaying) a.play().catch(function(){}); }catch(e){} });   // nudge past a stall
   openDB()
     .then(function(){ return migrateSessions(); })
     .then(function(){ return loadSessionsFromDB(); })
