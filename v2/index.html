@@ -632,7 +632,7 @@
   <div class="dev-row"><label><input type="checkbox" onchange="devFastBiomes(this.checked)"> Fast biomes</label><button onclick="devCoins()">+100 coins</button></div>
 </div>
 <button id="devFab" class="devfab" style="display:none;" onclick="var p=document.getElementById('devPanel');p.style.display=(p.style.display==='none'?'block':'none');">🧪</button>
-<audio id="audioEl" preload="metadata"></audio>
+<audio id="audioEl" preload="metadata" playsinline webkit-playsinline></audio>
 <div class="np" id="nowPlaying" onclick="if(event.target===this)closeNP()">
   <div class="np-card">
     <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -1213,7 +1213,7 @@ async function connectHR(){
     const char=await service.getCharacteristic("heart_rate_measurement"); // 0x2A37
     HR.char=char; char.addEventListener("characteristicvaluechanged", onHRValue);
     await char.startNotifications();
-    HR.connected=true; setHRUI(); toast("HR connected ✓"); readBattery(server);
+    HR.connected=true; setHRUI(); toast("HR connected ✓"); readBattery(server); unlockAudio();
   }catch(e){
     console.warn("HR connect failed:", e);
     var n=e&&e.name;
@@ -1531,7 +1531,7 @@ function beep(freq,ms){
 function chime(){ beep(660,140); setTimeout(()=>beep(990,220),160); }
 async function requestWake(){ try{ if("wakeLock" in navigator) wakeLock=await navigator.wakeLock.request("screen"); }catch(e){} }
 function releaseWake(){ try{ if(wakeLock){ wakeLock.release(); wakeLock=null; } }catch(e){} }
-document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"){ if(running){ requestWake(); catchUp(); } if(PROFILE.playerView!=="gauge" && $("player") && $("player").classList.contains("active")) RunGame.start(); } else { saveDraft(); RunGame.stop(); } });
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"){ unlockAudio(); if(running){ requestWake(); catchUp(); } if(PROFILE.playerView!=="gauge" && $("player") && $("player").classList.contains("active")) RunGame.start(); } else { saveDraft(); RunGame.stop(); } });   // resume the alarm AudioContext after any iOS interruption
 window.addEventListener("pagehide", function(){ saveDraft(); });   // last chance before iOS may evict the page
 
 /* ===================== SESSIONS / HISTORY ===================== */
@@ -1660,7 +1660,13 @@ function recoverDraft(){
 }
 function commitDetails(){             // write optional notes/RPE/MAF-speed into the already-saved record
   if(!currentSavedId) return;
-  for(var i=0;i<SESSIONS.length;i++){ if(SESSIONS[i].id===currentSavedId){ SESSIONS[i].mafSpeed=numOrNull($("inMaf").value); SESSIONS[i].rpe=numOrNull($("inRpe").value); SESSIONS[i].notes=$("inNotes").value.trim(); SESSIONS[i].updated_at=new Date().toISOString(); putSessionDB(SESSIONS[i]); enqueueSession(SESSIONS[i]); renderHistory(); return; } }
+  for(var i=0;i<SESSIONS.length;i++){ if(SESSIONS[i].id===currentSavedId){ var s=SESSIONS[i];
+    s.mafSpeed=numOrNull($("inMaf").value); s.rpe=numOrNull($("inRpe").value); s.notes=$("inNotes").value.trim();
+    if(!(s.recordedLive || (s.hr && s.hr.length))){   // no strap trace -> honor the manually typed Avg/Max instead of discarding it
+      var ma=numOrNull($("inAvg").value), mx=numOrNull($("inMax").value);
+      if(ma!=null) s.avg=ma; if(mx!=null) s.max=mx;
+    }
+    s.updated_at=new Date().toISOString(); putSessionDB(s); enqueueSession(s); renderHistory(); return; } }
 }
 
 /* ===================== ZONE GAME ENGINE ===================== */
@@ -1806,8 +1812,10 @@ function renderSummaryGame(){
   $("poAch").textContent = nu.length ? ("Unlocked: "+nu.map(function(id){ var a=ACHIEVEMENTS.find(function(x){return x.id===id;}); return a?(a.icon+" "+a.label):id; }).join(", ")) : "";
 }
 function saveSession(){ commitDetails(); toast("Saved ✓"); show("home"); }   // summary "Done" button
-function deleteSession(i){
+function deleteSession(id){
   if(!confirm("Delete this saved session? This can't be undone.")) return;
+  var i=SESSIONS.findIndex(function(s){return s.id===id;});   // look up by id — a render-time index can go stale after a sync
+  if(i<0){ renderHistory(); return; }
   var rec=SESSIONS[i]; SESSIONS.splice(i,1); if(rec) delSessionDB(rec.id); renderHistory(); toast("Session deleted");
 }
 function renderHistory(){
@@ -1825,8 +1833,8 @@ function renderHistory(){
     var pr=(r.mafSpeed!=null && r.mafSpeed===bestMaf())?'<span class="badge">🏅 best pace</span>':'';
     var gc=(r.game&&r.game.grade)?'<span class="gchip grade-'+r.game.grade+'">'+r.game.grade+(r.game.approx?'~':'')+'</span>':'';
     var info=document.createElement("div"); info.className="hmain"; info.innerHTML="<b>"+escTxt(r.title.replace(/^\d+ · /,""))+"</b>"+gc+pr+"<br><small>"+dt+" · "+(bits.join(" · ")||"no HR logged")+"</small><div class=\"feed-insight\">"+runInsight(r)+"</div>"; info.onclick=function(){ openSession(r.id); };
-    var cp=document.createElement("button"); cp.className="btn-ghost"; cp.style.cssText="flex:0;padding:4px 10px;font-size:15px;"; cp.textContent="📋"; cp.title="Copy this session's log (to send to Claude)"; cp.onclick=function(){ copySavedLog(i); };
-    var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.title="Delete this session"; del.onclick=function(){ deleteSession(i); };
+    var cp=document.createElement("button"); cp.className="btn-ghost"; cp.style.cssText="flex:0;padding:4px 10px;font-size:15px;"; cp.textContent="📋"; cp.title="Copy this session's log (to send to Claude)"; cp.onclick=function(){ copySavedLog(r.id); };
+    var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.title="Delete this session"; del.onclick=function(){ deleteSession(r.id); };
     el.appendChild(info); el.appendChild(cp); el.appendChild(del); list.appendChild(el);
   });
   renderTrends();
@@ -1884,12 +1892,13 @@ function copyLog(){                 // summary screen — copies the just-saved 
   for(var i=0;i<arr.length;i++){ if(arr[i].id===currentSavedId){ rec=arr[i]; break; } }
   if(rec) copy(fmtLog(rec)); else toast("Nothing to copy yet");
 }
-function copySavedLog(i){ var r=sessions()[i]; if(r) copy(fmtLog(r)); }
+function copySavedLog(id){ var r=SESSIONS.find(function(s){return s.id===id;}); if(r) copy(fmtLog(r)); }
 function exportAll(){ copy(JSON.stringify({profile:PROFILE, sessions:sessions()}, null, 2)); }
 function clearData(){
   if(confirm("Delete ALL saved sessions, settings, and music from this device? This can't be undone.")){
     localStorage.removeItem("maf_sessions"); localStorage.removeItem("maf_profile"); localStorage.removeItem("maf_migrated_v2");
-    if(mdb){ try{ mtx("readwrite").clear(); }catch(e){} try{ dbSessions("readwrite").clear(); }catch(e){} }
+    if(mdb){ try{ mtx("readwrite").clear(); }catch(e){} try{ dbSessions("readwrite").clear(); }catch(e){} try{ dbSyncq("readwrite").clear(); }catch(e){} }
+    QUEUE.length=0; clearDraft();   // also drop the cloud push-queue + in-progress draft so cleared runs can't re-upload
     SESSIONS=[]; stopMusic(); playlist=[]; renderMusic(); renderHistory(); toast("All data cleared");
   }
 }
@@ -2249,8 +2258,23 @@ async function importFile(files){
     var txt=await files[0].text(), obj=JSON.parse(txt), arr=(obj&&obj.sessions)||[];
     if(!Array.isArray(arr)||!arr.length){ toast("No sessions in that file"); return; }
     if(!mdb){ try{ await openDB(); }catch(e){} }
-    arr.forEach(function(r){ if(r&&r.id) putSessionDB(r); });
-    await loadSessionsFromDB(); renderHistory(); renderHome(); toast(arr.length+" sessions imported");
+    if(!mdb){ toast("Storage unavailable — can't import right now"); return; }   // don't blank history if the DB won't open
+    var existing={}; SESSIONS.forEach(function(s){ existing[s.id]=s; });
+    function newer(r,c){ return (r.updated_at||r.date||"") > (c.updated_at||c.date||""); }
+    var add=0, repl=0, skip=0;
+    arr.forEach(function(r){ if(!r||!r.id) return; var c=existing[r.id]; if(!c) add++; else if(newer(r,c)) repl++; else skip++; });
+    if(!confirm("Import this file?\n• "+add+" new run"+(add===1?"":"s")+"\n• "+repl+" newer version"+(repl===1?"":"s")+" (replace)\n• "+skip+" older/duplicate (skipped)")) return;
+    var imported=[];
+    arr.forEach(function(r){ if(!r||!r.id) return; var c=existing[r.id];
+      if(c && !newer(r,c)) return;                                  // keep the copy already on the device if it's newer/equal
+      if(!r.updated_at) r.updated_at=r.date||new Date().toISOString();
+      if(!r.schema) r.schema=2;
+      putSessionDB(r); imported.push(r.id);
+    });
+    await loadSessionsFromDB(); backfillGame(); lastProg=recomputeProgression();   // re-score imported runs
+    imported.forEach(function(id){ var s=SESSIONS.find(function(x){return x.id===id;}); if(s) enqueueSession(s); });   // queue to cloud (no-op if signed out)
+    renderHistory(); renderHome();
+    toast(imported.length+" run"+(imported.length===1?"":"s")+" imported");
   }catch(e){ toast("Import failed — bad file"); }
 }
 
