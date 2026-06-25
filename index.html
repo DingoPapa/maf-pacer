@@ -1294,27 +1294,30 @@ function onHRValue(e){
     liveScore(bpm, idx);
     var ri=i; if(flags&0x08) ri+=2;                                   // skip Energy Expended if present (bit3)
     if(flags&0x10){ for(; ri+1<v.byteLength; ri+=2){ SESS.rr.push([Math.round(elapsedSec()), Math.round(v.getUint16(ri,true)/1024*1000)]); } }  // RR intervals (bit4) → ms
-    const z=hrZone(bpm);
+    const z=zone(bpm).band;                                            // one classifier — beep now agrees with the on-screen color
     if(z!==HR.zone){
-      if(z==="near" && HR.zone!=="over") warnBeep();                    // approaching the cap
+      if(z==="sweet" && HR.zone!=="over") warnBeep();                  // entered the amber "ease up" band
       else if(z==="over"){ overAlarm(true); HR.lastOverBeep=Date.now(); } // over the cap — alarm + brief music duck
-      else if(HR.zone==="over") beep(700,120);                          // dropped back under
+      else if(HR.zone==="over") beep(700,120);                          // dropped back under the cap
       HR.zone=z;
     }
-    if(z==="over" && Date.now()-HR.lastOverBeep>=15000){ overAlarm(false); HR.lastOverBeep=Date.now(); } // re-alarm (no music interrupt) if lingering over
+    if(z==="over" && Date.now()-HR.lastOverBeep>=15000){ overAlarm(false); HR.lastOverBeep=Date.now(); } // re-alarm if lingering over
   }
   setHRUI();
 }
 function activeCeiling(){ return (cur && cur.cap) ? cur.cap : PROFILE.ceiling; }
-function hrZone(bpm){
-  if(bpm==null) return null;
-  const c=activeCeiling(), m=PROFILE.warnMargin||3;
-  if(bpm>c) return "over";
-  if(bpm>=c-m) return "near";
-  return "under";
+function warnFloor(){ return activeCeiling() - Math.max(2, Math.min(10, PROFILE.warnMargin||3)); }   // amber "ease up" zone + warn beep both start here
+/* ONE zone classifier — drives color, verdict, gauge AND the beep so they can never disagree */
+function zone(bpm){
+  if(bpm==null) return {band:null, warn:false, over:false};
+  var c=activeCeiling();
+  if(bpm>c) return {band:"over", warn:false, over:true};
+  if(bpm>=warnFloor()) return {band:"sweet", warn:true, over:false};   // amber: within warn margin of the cap
+  if(bpm>=c-10) return {band:"aerobic", warn:false, over:false};
+  return {band:"easy", warn:false, over:false};
 }
+function mafZone(bpm){ return zone(bpm).band; }     // alias — every color/verdict call site is unchanged
 function warnBeep(){ beep(880,70); setTimeout(function(){beep(880,70);},110); }
-function mafZone(bpm){ if(bpm==null) return null; var c=activeCeiling(); if(bpm>c) return "over"; if(bpm>=c-5) return "sweet"; if(bpm>=c-10) return "aerobic"; return "easy"; }
 /* circular HR gauge: 270° sweep (gap at bottom), HR range cap-25 .. cap+6 */
 function gPolar(cx,cy,r,a){ var t=a*Math.PI/180; return [cx+r*Math.cos(t), cy+r*Math.sin(t)]; }
 function gArc(cx,cy,r,a1,a2){ var p=gPolar(cx,cy,r,a1), q=gPolar(cx,cy,r,a2); var large=(a2-a1)>180?1:0; return "M"+p[0].toFixed(1)+" "+p[1].toFixed(1)+" A"+r+" "+r+" 0 "+large+" 1 "+q[0].toFixed(1)+" "+q[1].toFixed(1); }
@@ -1324,8 +1327,9 @@ function drawGauge(){
   var cx=120,cy=120,r=96, c=activeCeiling();
   $("gTrack").setAttribute("d", gArc(cx,cy,r,135,405));
   $("gEasy").setAttribute("d", gArc(cx,cy,r,gAngle(c-25),gAngle(c-10))); $("gEasy").setAttribute("stroke","var(--z-easy)");
-  $("gAero").setAttribute("d", gArc(cx,cy,r,gAngle(c-10),gAngle(c-5)));  $("gAero").setAttribute("stroke","var(--z-aerobic)");
-  $("gSweet").setAttribute("d",gArc(cx,cy,r,gAngle(c-5),gAngle(c)));     $("gSweet").setAttribute("stroke","var(--z-sweet)");
+  var wf=warnFloor();
+  $("gAero").setAttribute("d", gArc(cx,cy,r,gAngle(c-10),gAngle(wf)));  $("gAero").setAttribute("stroke","var(--z-aerobic)");
+  $("gSweet").setAttribute("d",gArc(cx,cy,r,gAngle(wf),gAngle(c)));     $("gSweet").setAttribute("stroke","var(--z-sweet)");
   $("gOver").setAttribute("d", gArc(cx,cy,r,gAngle(c),gAngle(c+6)));     $("gOver").setAttribute("stroke","var(--z-over)");
 }
 
@@ -1485,7 +1489,7 @@ function togglePlayerView(){ PROFILE.playerView=(PROFILE.playerView==="gauge")?"
 function zoneColor(z){ return z==="over"?"var(--z-over)":z==="sweet"?"var(--z-sweet)":z==="aerobic"?"var(--z-aerobic)":"var(--z-easy)"; }
 function verdictText(z){ return z==="over"?"SLOW DOWN":z==="sweet"?"EASE UP":z==="aerobic"?"IN RANGE":"PUSH A BIT"; }
 function setHRUI(){
-  const val=HR.bpm==null?"––":HR.bpm, z=hrZone(HR.bpm);
+  const val=HR.bpm==null?"––":HR.bpm;
   $("homeBpm").textContent=val;
   var hb=$("homeBpm"); hb.className="bpm"; var hmz=mafZone(HR.bpm); if(hmz) hb.classList.add("z-"+hmz);
   if($("homeHrChip")) $("homeHrChip").classList.toggle("live",HR.connected);
