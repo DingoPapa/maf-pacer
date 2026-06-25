@@ -207,6 +207,12 @@
   .hrbig.z-sweet,.hrbig.z-over{ animation:hrpulse 1s infinite; }
   .verdict{ font-size:18px; font-weight:800; letter-spacing:.03em; margin-top:var(--s1); min-height:22px; color:var(--muted); }
   .verdict.z-easy{ color:var(--z-easy); } .verdict.z-aerobic{ color:var(--z-aerobic); } .verdict.z-sweet{ color:var(--z-sweet); } .verdict.z-over{ color:var(--z-over); }
+  /* signature dial: the tip glows the live zone hue; breathes calmly in the sweet spot, pulses only when over the cap */
+  .gauge.g-breathe #gMarker{ animation:gBreathe 2.4s var(--ease-settle) infinite; }
+  .gauge.g-over #gMarker{ animation:gPulse 1s ease-in-out infinite; }
+  @keyframes gBreathe{ 0%,100%{opacity:1} 50%{opacity:.5} }
+  @keyframes gPulse{ 0%,100%{opacity:1} 50%{opacity:.28} }
+  @media (prefers-reduced-motion:reduce){ .gauge.g-breathe #gMarker,.gauge.g-over #gMarker{ animation:none } }
   /* taller zone meter */
   .zm-track{ height:18px; border-radius:9px; }
   .zm-marker{ height:26px; top:-4px; width:3px; background:#fff; }
@@ -511,7 +517,7 @@
     <h2>Feedback</h2>
     <div class="card">
       <div class="sub" style="margin-bottom:8px;">Found a bug or have an idea? Send it straight to the developer.</div>
-      <textarea id="fbText" rows="3" maxlength="2000" placeholder="What's working, what's not, what you'd love to see…" style="width:100%; box-sizing:border-box; resize:vertical; padding:10px; border:1px solid var(--line); border-radius:12px; background:var(--surface-2,#181B21); color:inherit; font:inherit;"></textarea>
+      <textarea id="fbText" rows="3" maxlength="2000" placeholder="What's working, what's not, what you'd love to see…" style="width:100%; box-sizing:border-box; resize:vertical; padding:10px; border:1px solid var(--line); border-radius:12px; background:var(--surface-raised); color:inherit; font:inherit;"></textarea>
       <button class="btn-primary" style="width:100%; margin-top:8px;" onclick="sendFeedback()">Send feedback</button>
       <div class="sub" id="fbMsg" style="margin-top:8px; min-height:16px;"></div>
     </div>
@@ -1463,10 +1469,13 @@ function setHRUI(){
   if($("homeConnect")){ $("homeConnect").textContent=HR.connected?"Reconnect strap":"Connect Polar H10"; $("homeConnect").style.display=HR.connected?"none":"block"; }
   const m=$("mBpm"); m.textContent=val; m.className="hrbig bpm"; var mz=mafZone(HR.bpm); if(mz) m.classList.add("z-"+mz);
   var vd=$("verdict"); if(vd){ if(mz){ vd.textContent=verdictText(mz); vd.className="verdict z-"+mz; } else { vd.textContent=""; vd.className="verdict"; } }
-  var gm=$("gMarker");
-  if(gm){ if(HR.bpm==null){ gm.style.display="none"; if($("gauge")) $("gauge").style.filter="none"; }
+  var gm=$("gMarker"), gEl=$("gauge");
+  if(gm){ if(HR.bpm==null){ gm.style.display="none"; if(gEl){ gEl.style.filter="none"; gEl.classList.remove("g-breathe","g-over"); } }
     else { var pt=gPolar(120,120,96,gAngle(HR.bpm)); gm.setAttribute("cx",pt[0].toFixed(1)); gm.setAttribute("cy",pt[1].toFixed(1)); gm.style.display="block";
-      if($("gauge")){ var glow=zoneColor(mz), cc=activeCeiling(), inPerf=(cur&&cur.isTest)?(HR.bpm>=cc-4&&HR.bpm<=cc):(HR.bpm>=cc-GAME.PLATEAU_LO&&HR.bpm<=cc-GAME.PLATEAU_HI); if(inPerf) glow="#FFD24A"; $("gauge").style.filter="drop-shadow(0 0 18px "+glow+")"; } } }
+      var cc=activeCeiling(), inPerf=(cur&&cur.isTest)?(HR.bpm>=cc-4&&HR.bpm<=cc):(HR.bpm>=cc-GAME.PLATEAU_LO&&HR.bpm<=cc-GAME.PLATEAU_HI);
+      var glow=zoneColor(mz); if(inPerf) glow="#FFD24A";
+      gm.style.fill=glow;                                            // the tip glows the live zone hue
+      if(gEl){ gEl.style.filter="drop-shadow(0 0 18px "+glow+")"; gEl.classList.toggle("g-over", mz==="over"); gEl.classList.toggle("g-breathe", inPerf && mz!=="over"); } } }
   updateRec();
 }
 function battSuffix(){ return (HR.battery!=null && HR.battery<=20) ? (" · 🔋"+HR.battery+"%") : ""; }
