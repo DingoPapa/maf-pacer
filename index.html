@@ -229,7 +229,7 @@
   .bpm.z-easy{ color:var(--z-easy); } .bpm.z-aerobic{ color:var(--z-aerobic); } .bpm.z-sweet{ color:var(--z-sweet); } .bpm.z-over{ color:var(--z-over); }
   /* Home dashboard */
   .home-head{ display:flex; justify-content:space-between; align-items:baseline; margin:6px 0 16px; }
-  .greet{ font-size:26px; font-weight:800; letter-spacing:-.02em; }
+  .greet{ font-size:22px; font-weight:800; letter-spacing:-.02em; }
   .home-head .date{ font-size:13px; color:var(--muted); }
   .today-hero{ position:relative; border-radius:20px; padding:18px; margin-bottom:14px; overflow:hidden;
     background:var(--surface); border:1px solid var(--line); box-shadow:var(--elev-1); }
@@ -268,20 +268,20 @@
   /* ===== ZONE GAME ===== */
   .ghud{ display:flex; align-items:center; gap:10px; margin-top:8px; font-variant-numeric:tabular-nums; }
   .ghud.paused{ opacity:.4; }
-  .ghud-score{ font-size:15px; font-weight:800; color:var(--z-sweet); white-space:nowrap; }
+  .ghud-score{ font-size:15px; font-weight:800; color:var(--ink); white-space:nowrap; }
   .ghud-combo{ flex:1; height:8px; background:var(--panel2); border-radius:999px; overflow:hidden; }
   .ghud-combo i{ display:block; height:100%; width:0%; background:var(--accent); transition:width .3s linear; }
   .ghud-mult{ font-size:14px; font-weight:800; padding:2px 8px; border-radius:999px; background:var(--panel2); color:var(--muted); min-width:36px; text-align:center; transition:background .2s; }
-  .ghud-mult.m2{ color:#fff; background:rgba(52,199,89,.32);} .ghud-mult.m3{ color:#fff; background:rgba(255,176,46,.34);}
-  .ghud-mult.m4{ color:#fff; background:rgba(255,140,40,.42);} .ghud-mult.m5{ color:#fff; background:rgba(255,90,82,.48);}
+  .ghud-mult.m2{ color:#fff; background:rgba(91,140,255,.24);} .ghud-mult.m3{ color:#fff; background:rgba(91,140,255,.34);}
+  .ghud-mult.m4{ color:#fff; background:rgba(91,140,255,.44);} .ghud-mult.m5{ color:#fff; background:rgba(91,140,255,.56);}
   .gbanner{ height:28px; display:flex; align-items:center; justify-content:center; margin-top:6px; }
   .gbtext{ font-size:15px; font-weight:800; letter-spacing:.02em; padding:3px 14px; border-radius:999px; opacity:0; transform:translateY(6px) scale(.92); transition:all .22s ease; white-space:nowrap; }
   .gbtext.show{ opacity:1; transform:none; }
-  .gbtext.up{ color:var(--z-sweet); background:rgba(255,176,46,.18); }
+  .gbtext.up{ color:var(--accent); background:rgba(91,140,255,.18); }
   .gbtext.over{ color:var(--z-over); background:rgba(255,90,82,.18); }
   .gchip{ display:inline-block; font-size:10px; font-weight:800; padding:2px 7px; border-radius:999px; margin-left:6px; }
   .grade-S{ background:rgba(255,255,255,.10); color:var(--ink);} .grade-A{ background:rgba(255,255,255,.07); color:var(--ink-2);}
-  .grade-B{ background:rgba(79,163,255,.2); color:var(--z-easy);} .grade-C{ background:rgba(255,176,46,.2); color:var(--z-sweet);} .grade-D{ background:rgba(255,90,82,.2); color:var(--z-over);}
+  .grade-B{ background:rgba(255,255,255,.07); color:var(--ink-2);} .grade-C{ background:rgba(255,255,255,.06); color:var(--muted);} .grade-D{ background:rgba(255,255,255,.05); color:var(--muted);}
   .lvlcard{ background:var(--surface-raised); border:1px solid var(--line); border-radius:16px; padding:12px 14px; margin-bottom:12px; box-shadow:var(--elev-0); }
   .lvl-top{ display:flex; align-items:baseline; justify-content:space-between; }
   .lvl-num{ font-size:18px; font-weight:800; } .lvl-rank{ font-size:12px; color:var(--muted); }
@@ -601,7 +601,7 @@
       <ul style="padding-left:18px; line-height:1.6; font-size:14px;">
         <li><b>Auto-Lock = Never</b> (iPhone Settings → Display) and keep this page in front — backgrounding stops the timers and can drop the HR stream.</li>
         <li>The mph/incline numbers are <b>starting points</b>. HR is the boss: stay under 140 and let pace fall if it climbs.</li>
-        <li>The HR number turns <b style="color:#f59e0b">amber + soft double-beep</b> as you near the cap, then <b style="color:#ef4444">red + alarm</b> if you go over — ease off when you hear it.</li>
+        <li>The HR number turns <b style="color:var(--z-sweet)">amber + soft double-beep</b> as you near the cap, then <b style="color:var(--z-over)">red + alarm</b> if you go over — ease off when you hear it.</li>
         <li>No Bluefy? Cues, timers, adjustments and logging still work in Safari — just type your Avg/Max HR from Polar Beat at the end.</li>
         <li><b>Music:</b> add your Suno MP3s in the Music section (Home) — stored on your device, never uploaded. They play during runs and <b>duck automatically</b> when the over-cap alarm sounds, so you always hear it.</li>
       </ul>
@@ -663,6 +663,7 @@ var sb = (window.supabase && window.supabase.createClient) ? window.supabase.cre
 
 const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0, playerView:"game" };
 const APP_VERSION = "2026.06.24";   // tagged onto feedback so reports map to a build
+var ZONE = { easy:"#4FA3FF", aerobic:"#3DDC6E", sweet:"#FFB02E", over:"#FF5A52", neutral:"#7B8493" };   // single source of truth for zone color in canvas/SVG renderers (mirrors the CSS --z-* tokens)
 
 /* ---- ZONE GAME tuning (precision-bullseye scoring) ---- */
 const GAME = { PLATEAU_LO:8, PLATEAU_HI:2, MAX_PTS:10, SLOPE:1, EASY_FLOOR:4, OVER_MIN:7, COMBO_STEP:30, MULT_CAP:5, DT_CAP:5, GRADE_S:90, GRADE_A:80, GRADE_B:68, GRADE_C:55 };
@@ -1382,7 +1383,7 @@ var RunGame = (function(){
     glow5 = (mult>=5&&isWork) ? Math.min(1,glow5+d*0.05) : Math.max(0,glow5-d*0.05);
     draw(c,bpm,z,phase,dispLo,dispHi,inTarget,scored,over,mult);
   }
-  function zc(z){ return z==="over"?"#FF5A52":z==="sweet"?"#FFB02E":z==="aerobic"?"#34C759":z==="easy"?"#4FA3FF":"#9AA3B2"; }
+  function zc(z){ return ZONE[z]||ZONE.neutral; }
   function draw(c,bpm,z,phase,dispLo,dispHi,inTarget,scored,over,mult){
     var ox=shake>0?(Math.random()-0.5)*shake:0, oy=shake>0?(Math.random()-0.5)*shake:0;
     ctx.clearRect(0,0,W,H); ctx.save(); ctx.translate(ox,oy);
@@ -2173,8 +2174,8 @@ function drawTrace(rec, el){
   function X(t){ return padL+(W-padL-padR)*(t/dur); }
   function Y(b){ return padT+(H-padT-padB)*(1-(b-loY)/(hiY-loY)); }
   function band(y1,y2,f){ var a=Y(Math.min(y2,hiY)), b=Y(Math.max(y1,loY)); return '<rect x="'+padL+'" y="'+a.toFixed(1)+'" width="'+(W-padL-padR)+'" height="'+Math.max(0,(b-a)).toFixed(1)+'" fill="'+f+'"/>'; }
-  var g=band(loY,c-10,'rgba(139,149,184,.10)')+band(c-10,c-5,'rgba(34,197,94,.13)')+band(c-5,c,'rgba(245,158,11,.15)')+band(c,hiY,'rgba(239,68,68,.16)');
-  g+='<line x1="'+padL+'" y1="'+Y(c).toFixed(1)+'" x2="'+(W-padR)+'" y2="'+Y(c).toFixed(1)+'" stroke="#ef4444" stroke-width="1" stroke-dasharray="4 3"/>';
+  var g=band(loY,c-10,'rgba(79,163,255,.10)')+band(c-10,c-5,'rgba(61,220,110,.13)')+band(c-5,c,'rgba(255,176,46,.15)')+band(c,hiY,'rgba(255,90,82,.16)');
+  g+='<line x1="'+padL+'" y1="'+Y(c).toFixed(1)+'" x2="'+(W-padR)+'" y2="'+Y(c).toFixed(1)+'" stroke="#FF5A52" stroke-width="1" stroke-dasharray="4 3"/>';
   var cum=0; (rec.perStage||[]).forEach(function(p){ cum+=(p.plan&&p.plan.sec)||0; if(cum>0&&cum<dur){ g+='<line x1="'+X(cum).toFixed(1)+'" y1="'+padT+'" x2="'+X(cum).toFixed(1)+'" y2="'+(H-padB)+'" stroke="rgba(255,255,255,.10)" stroke-width="1"/>'; } });
   var ds=dsTrace(hr,180), sp=[]; ds.forEach(function(p){ var s=speedAt(rec,p[0]); if(s!=null) sp.push([p[0],s]); });
   if(sp.length){ var sv=sp.map(function(p){return p[1];}); var smin=Math.min.apply(null,sv)-0.3, smax=Math.max.apply(null,sv)+0.3; if(smax-smin<0.5)smax=smin+1;
@@ -2187,9 +2188,9 @@ function drawTrace(rec, el){
   g='<defs><linearGradient id="trg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(234,240,255,.20)"/><stop offset="1" stop-color="rgba(234,240,255,0)"/></linearGradient></defs>'+g;
   g+='<polygon points="'+X(0).toFixed(1)+","+(H-padB)+" "+hpts.join(" ")+" "+X(dur).toFixed(1)+","+(H-padB)+'" fill="url(#trg)"/>';
   g+='<polyline fill="none" stroke="#eaf0ff" stroke-width="2.4" points="'+hpts.join(" ")+'"/>';
-  g+='<text x="2" y="'+(Y(c)+3).toFixed(1)+'" fill="#ef4444" font-size="10">'+c+'</text>';
-  g+='<text x="2" y="'+(Y(loY)).toFixed(1)+'" fill="#8d97b8" font-size="10">'+Math.round(loY)+'</text>';
-  for(var q=0;q<=4;q++){ var tt=dur*q/4; g+='<text x="'+X(tt).toFixed(1)+'" y="'+(H-6)+'" fill="#8d97b8" font-size="10" text-anchor="middle">'+fmt(tt)+'</text>'; }
+  g+='<text x="2" y="'+(Y(c)+3).toFixed(1)+'" fill="#FF5A52" font-size="10">'+c+'</text>';
+  g+='<text x="2" y="'+(Y(loY)).toFixed(1)+'" fill="#7B8493" font-size="10">'+Math.round(loY)+'</text>';
+  for(var q=0;q<=4;q++){ var tt=dur*q/4; g+='<text x="'+X(tt).toFixed(1)+'" y="'+(H-6)+'" fill="#7B8493" font-size="10" text-anchor="middle">'+fmt(tt)+'</text>'; }
   // adjustment timeline markers (where speed/incline changed)
   var adjs=(rec.adjustments||[]).filter(function(a){return a&&a.atSec!=null;});
   adjs.forEach(function(a){ var ax=X(a.atSec);
@@ -2222,8 +2223,8 @@ function drawZoneBar(rec, el){
   var tot=z.under+z.aerobic+z.sweet+z.over; if(!tot){ el.innerHTML='<div class="empty">No HR recorded.</div>'; return; }
   function seg(s,col){ var p=s/tot*100; return p>0?'<div style="width:'+p.toFixed(1)+'%;background:'+col+'"></div>':""; }
   function mn(s){ return (s/60).toFixed(s>=600?0:1)+"m"; }
-  el.innerHTML='<div class="zonebar">'+seg(z.under,"#8d97b8")+seg(z.aerobic,"#22c55e")+seg(z.sweet,"#f59e0b")+seg(z.over,"#ef4444")+'</div>'+
-    '<div class="zonelegend"><span>under '+mn(z.under)+'</span><span style="color:#22c55e">aerobic '+mn(z.aerobic)+'</span><span style="color:#f59e0b">sweet '+mn(z.sweet)+'</span><span style="color:#ef4444">over '+mn(z.over)+'</span></div>';
+  el.innerHTML='<div class="zonebar">'+seg(z.under,ZONE.easy)+seg(z.aerobic,ZONE.aerobic)+seg(z.sweet,ZONE.sweet)+seg(z.over,ZONE.over)+'</div>'+
+    '<div class="zonelegend"><span style="color:'+ZONE.easy+'">under '+mn(z.under)+'</span><span style="color:'+ZONE.aerobic+'">aerobic '+mn(z.aerobic)+'</span><span style="color:'+ZONE.sweet+'">sweet '+mn(z.sweet)+'</span><span style="color:'+ZONE.over+'">over '+mn(z.over)+'</span></div>';
 }
 function exportFile(){
   try{
