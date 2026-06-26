@@ -99,7 +99,7 @@
   .stagecard.flash{animation:flash .6s ease;}
   @keyframes flash{0%{filter:brightness(2.4);}100%{filter:brightness(1);}}
   .stagename{font-size:18px; font-weight:800;}
-  .timer{font-size:58px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; margin:2px 0;}
+  /* (removed unused .timer — the live run timer is .pl-time) */
   .cue{color:#dfe6ff; font-size:14px; max-width:330px; min-height:34px;}
   .metrics{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; width:100%; padding:0 4px; margin-top:10px; align-items:start;}
   .metric{background:rgba(0,0,0,.28); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:8px 6px;}
@@ -171,7 +171,7 @@
   .zonelegend{ display:flex; flex-wrap:wrap; gap:10px 14px; font-size:11px; color:var(--muted); }
   .kv{ display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px; }
   .kv .k{ color:var(--muted); }
-  .hmain{ flex:1; cursor:pointer; overflow:hidden; }
+  .hmain{ flex:1; min-width:0; cursor:pointer; overflow:hidden; word-break:break-word; }
 
   /* ===== v2.1: kill double-tap zoom + HR zone meter + polish ===== */
   html,body{ touch-action:manipulation; }
@@ -180,7 +180,7 @@
   .zm-track{ position:relative; display:flex; height:12px; border-radius:7px; overflow:hidden; box-shadow:inset 0 0 0 1px rgba(255,255,255,.07); }
   .zm-seg{ height:100%; }
   .zm-marker{ position:absolute; top:-4px; width:3px; height:20px; background:#fff; border-radius:2px; box-shadow:0 0 6px rgba(0,0,0,.75); transform:translateX(-50%); transition:left .35s ease; }
-  .zm-labels{ display:flex; justify-content:space-between; font-size:9px; color:var(--muted); margin-top:4px; text-transform:uppercase; letter-spacing:.04em; }
+  .zm-labels{ display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:4px; text-transform:uppercase; letter-spacing:.04em; }
   /* professional depth + type */
   h1{ letter-spacing:-0.02em; }
   .card{ box-shadow:var(--elev-0); }
@@ -214,6 +214,7 @@
   @keyframes gBreathe{ 0%,100%{opacity:1} 50%{opacity:.5} }
   @keyframes gPulse{ 0%,100%{opacity:1} 50%{opacity:.28} }
   @media (prefers-reduced-motion:reduce){ *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; } }   /* kill pulse/hrpulse/flash/breathe; zone COLOR stays */
+  @media (min-width:900px){ .app,.tabbar,.np-card{ max-width:720px; } }   /* desktop/tablet: widen the column instead of a tiny centered strip */
   /* taller zone meter */
   .zm-track{ height:18px; border-radius:9px; }
   .zm-marker{ height:26px; top:-4px; width:3px; background:#fff; }
@@ -266,7 +267,7 @@
   /* records strip + segmented chart toggle + feed rows (space-conscious) */
   .recstrip{ display:flex; gap:8px; margin-bottom:12px; }
   .recstrip .rec{ flex:1; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px 6px; text-align:center; box-shadow:var(--elev-0); }
-  .recstrip .rv{ font-size:17px; font-weight:800; line-height:1.1; } .recstrip .rl{ font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-top:3px; }
+  .recstrip .rv{ font-size:17px; font-weight:800; line-height:1.1; } .recstrip .rl{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-top:3px; }
   .seg{ display:flex; gap:4px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r-pill); padding:4px; margin-bottom:12px; }
   .seg-btn{ flex:1; background:transparent; border:none; border-radius:var(--r-pill); padding:9px 0; font-size:13px; font-weight:700; color:var(--muted); }
   .seg-btn.active{ background:var(--accent); color:#0a1430; }
@@ -589,12 +590,12 @@
     <h1>Settings</h1>
     <div class="card">
       <label>MAF heart-rate ceiling (bpm)</label>
-      <input type="number" id="setCeil" inputmode="numeric">
+      <input type="number" id="setCeil" inputmode="numeric" min="81" max="209" step="1" onchange="applySettings()">
       <div class="sub" style="margin-top:6px;">Your ceiling = 180 − age − adjustment. Update it here if it changes (e.g., on a birthday).</div>
     </div>
     <div class="card">
       <label>Warn when within … bpm of the cap</label>
-      <input type="number" id="setWarn" inputmode="numeric">
+      <input type="number" id="setWarn" inputmode="numeric" min="1" max="15" step="1" onchange="applySettings()">
       <div class="sub" style="margin-top:6px;">Number turns amber + soft double-beep as you approach the ceiling, so you can ease off before going over. Default 3.</div>
     </div>
     <div class="card">
@@ -792,7 +793,7 @@ function renderAccount(){
   var el=$("acctCard"); if(!el) return;
   if(!sb){ el.innerHTML='<div class="sub">Cloud sync is unavailable (couldn\'t reach Supabase). The app works fully offline — your data stays on this device.</div>'; return; }
   if(authUser){
-    el.innerHTML='<div class="sub" style="margin-bottom:10px;">✓ Signed in as <b>'+escTxt(authUser.email)+'</b><br>Your runs back up &amp; sync to your account across devices.</div>'+
+    el.innerHTML='<div class="sub" style="margin-bottom:10px;">✓ Signed in as <b style="word-break:break-all;">'+escTxt(authUser.email)+'</b><br>Your runs back up &amp; sync to your account across devices.</div>'+
       '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;"><span id="syncStatus" class="sub" style="font-size:12px;"></span><button class="btn-ghost" style="font-size:12px; padding:6px 12px; width:auto;" onclick="syncNow()">Sync now</button></div>'+
       '<button class="btn-ghost" style="width:100%;" onclick="authSignOut()">Sign out</button>';
     updateSyncStatus();
@@ -997,7 +998,12 @@ function applyProfileUI(){
 }
 function setUnits(u){ PROFILE.units=u; applyProfileUI(); }
 function setSound(b){ PROFILE.sound=b; applyProfileUI(); }
-function applySettings(){ const c=parseInt($("setCeil").value,10); if(c>80&&c<210) PROFILE.ceiling=c; const w=parseInt($("setWarn").value,10); if(w>=1&&w<=15) PROFILE.warnMargin=w; saveProfile(); applyProfileUI(); }
+function applySettings(){
+  var cv=$("setCeil").value, wv=$("setWarn").value, c=parseInt(cv,10), w=parseInt(wv,10);
+  if(c>80&&c<210) PROFILE.ceiling=c; else if(cv!=="") toast("Ceiling must be 81–209 bpm");
+  if(w>=1&&w<=15) PROFILE.warnMargin=w; else if(wv!=="") toast("Warn margin must be 1–15 bpm");
+  saveProfile(); applyProfileUI();
+}
 function checkEnv(){
   const b=$("envBanner"); const secure=location.protocol==="https:"||location.hostname==="localhost";
   let msg="";
