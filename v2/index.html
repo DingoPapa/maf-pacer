@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; media-src blob:; connect-src https://acavqbqaxktgetnwltfz.supabase.co wss://acavqbqaxktgetnwltfz.supabase.co; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <script>if(self!==top){try{top.location=self.location}catch(e){}document.documentElement.style.display="none";}</script>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -59,6 +59,7 @@
     padding:14px 16px; cursor:pointer; transition:transform .05s ease, filter .15s ease;
   }
   button:active{transform:scale(.98);}
+  :focus-visible{ outline:2px solid var(--ink); outline-offset:2px; }   /* keyboard focus ring, visible on graphite AND the accent */
   .btn-primary{background:linear-gradient(180deg,var(--accent),var(--accent-press)); border-color:var(--accent-press);}
   .btn-ghost{background:transparent;}
   .btn-good{background:linear-gradient(180deg,var(--accent),var(--accent-press)); border-color:var(--accent-press);}
@@ -67,11 +68,11 @@
   .wk{display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; text-align:left;}
   .wk small{color:var(--muted); font-weight:600;}
   label{font-size:13px; color:var(--muted); display:block; margin-bottom:6px;}
-  input[type=number],input[type=text]{
+  input[type=number],input[type=text],input[type=email],input[type=password]{
     width:100%; font-size:18px; padding:12px; border-radius:12px; background:var(--panel2);
     color:var(--ink); border:1px solid var(--line); font-family:inherit;
   }
-  textarea{width:100%; min-height:80px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:12px; padding:12px; font-family:inherit; font-size:14px;}
+  textarea{width:100%; min-height:80px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:12px; padding:12px; font-family:inherit; font-size:16px;}
   .toggle{display:flex; gap:8px;}
   .toggle button{flex:1; padding:10px;}
   .toggle button.sel{background:var(--accent); border-color:var(--accent);}
@@ -152,7 +153,7 @@
   .iconbtn{ flex:0; padding:6px 12px; font-size:13px; }
   .pl-stage{ flex:1; text-align:center; font-size:13px; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .pl-time{ flex:0; min-width:58px; text-align:right; font-size:19px; font-weight:800; font-variant-numeric:tabular-nums; color:var(--muted); }
-  .recind{ font-size:11px; color:var(--muted); margin-top:6px; min-height:14px; }
+  .recind{ font-size:11px; color:var(--muted); margin-top:4px; min-height:22px; padding:4px 0; }
   .hrhero{ margin:4px 0 0; }
   .hrbig{ font-size:84px; font-weight:800; font-variant-numeric:tabular-nums; line-height:.92; color:#9fb4ff; }
   .hrbig.over,.hrbig.near{ animation:hrpulse 1s infinite; }
@@ -212,7 +213,7 @@
   .gauge.g-over #gMarker{ animation:gPulse 1s ease-in-out infinite; }
   @keyframes gBreathe{ 0%,100%{opacity:1} 50%{opacity:.5} }
   @keyframes gPulse{ 0%,100%{opacity:1} 50%{opacity:.28} }
-  @media (prefers-reduced-motion:reduce){ .gauge.g-breathe #gMarker,.gauge.g-over #gMarker{ animation:none } }
+  @media (prefers-reduced-motion:reduce){ *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; } }   /* kill pulse/hrpulse/flash/breathe; zone COLOR stays */
   /* taller zone meter */
   .zm-track{ height:18px; border-radius:9px; }
   .zm-marker{ height:26px; top:-4px; width:3px; background:#fff; }
@@ -268,7 +269,7 @@
   .recstrip .rv{ font-size:17px; font-weight:800; line-height:1.1; } .recstrip .rl{ font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-top:3px; }
   .seg{ display:flex; gap:4px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r-pill); padding:4px; margin-bottom:12px; }
   .seg-btn{ flex:1; background:transparent; border:none; border-radius:var(--r-pill); padding:9px 0; font-size:13px; font-weight:700; color:var(--muted); }
-  .seg-btn.active{ background:var(--accent); color:#fff; }
+  .seg-btn.active{ background:var(--accent); color:#0a1430; }
   .feed-insight{ font-size:12px; color:var(--muted); margin-top:3px; }
   .badge{ display:inline-block; font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px; background:rgba(255,176,46,.18); color:var(--z-sweet); margin-left:6px; }
   /* ===== ZONE GAME ===== */
@@ -311,7 +312,7 @@
   .devfab{ position:fixed; right:10px; bottom:62px; z-index:90; width:42px; height:42px; border-radius:50%; background:#11151c; border:1px solid var(--line); color:#fff; font-size:18px; box-shadow:0 6px 18px rgba(0,0,0,.4); }
   /* ===== RUN GAME (side-scroller) ===== */
   .stagecard{ position:relative; }
-  .viewtoggle{ position:absolute; top:8px; right:10px; z-index:3; background:rgba(0,0,0,.32); border:1px solid var(--line); color:var(--ink); font-size:11px; font-weight:700; padding:5px 10px; border-radius:999px; }
+  .viewtoggle{ position:absolute; top:8px; right:10px; z-index:3; background:rgba(0,0,0,.32); border:1px solid var(--line); color:var(--ink); font-size:11px; font-weight:700; padding:8px 13px; border-radius:999px; }
   .rungame{ display:none; width:100%; height:190px; border-radius:18px; margin:6px 0 2px; image-rendering:pixelated; background:#10243f; }
   /* ===== landscape run layout: gauge + steppers side-by-side, nothing below the fold ===== */
   @media (orientation:landscape) and (max-height:540px){
@@ -415,7 +416,7 @@
       <div class="stagename" id="stageName">—</div>
       <canvas id="runCanvas" class="rungame"></canvas>
       <div class="gauge" id="gauge">
-        <svg viewBox="0 0 240 240">
+        <svg viewBox="0 0 240 240" role="img" aria-label="Live heart-rate zone dial">
           <path id="gTrack" fill="none" stroke="var(--surface3)" stroke-width="16" stroke-linecap="round"></path>
           <path id="gEasy" fill="none" stroke-width="16" stroke-linecap="round"></path>
           <path id="gAero" fill="none" stroke-width="16"></path>
@@ -446,14 +447,14 @@
     </div>
 
     <div class="controls">
-      <button class="btn-ghost" id="btnPrev" onclick="prevStage()">◂</button>
+      <button class="btn-ghost" id="btnPrev" onclick="prevStage()" aria-label="Previous stage">◂</button>
       <button class="btn-primary" id="btnPlay" onclick="togglePlay()">Start</button>
-      <button class="btn-ghost" id="btnNext" onclick="skipStage()">▸</button>
+      <button class="btn-ghost" id="btnNext" onclick="skipStage()" aria-label="Skip to next stage">▸</button>
     </div>
     <div id="musicBar" style="display:none; align-items:center; gap:10px; padding:2px 14px 6px;">
-      <button class="btn-ghost" onclick="prevTrack()" style="flex:0; padding:10px 12px; font-size:18px;">⏮</button>
-      <button class="btn-ghost" id="playBtnPl" onclick="toggleMusic()" style="flex:0; padding:10px 16px; font-size:18px;">▶</button>
-      <button class="btn-ghost" onclick="nextTrack()" style="flex:0; padding:10px 12px; font-size:18px;">⏭</button>
+      <button class="btn-ghost" onclick="prevTrack()" aria-label="Previous track" style="flex:0; padding:10px 12px; font-size:18px;">⏮</button>
+      <button class="btn-ghost" id="playBtnPl" onclick="toggleMusic()" aria-label="Play or pause music" style="flex:0; padding:10px 16px; font-size:18px;">▶</button>
+      <button class="btn-ghost" onclick="nextTrack()" aria-label="Next track" style="flex:0; padding:10px 12px; font-size:18px;">⏭</button>
       <button class="btn-ghost" onclick="openNP()" style="flex:1; text-align:left; padding:10px 12px; overflow:hidden;"><span class="sub" id="trackNowPl" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;">♪ Tap for player</span></button>
     </div>
     <div style="padding:6px 14px calc(12px + env(safe-area-inset-bottom));"><button class="btn-danger" style="width:100%;" onclick="endWorkout(true)">Finish & log</button></div>
@@ -554,7 +555,7 @@
         <button class="btn-ghost" onclick="nextTrack()" style="flex:0; padding:10px 14px;">⏭</button>
       </div>
       <label for="musicFiles" style="display:block;text-align:center;margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:14px;cursor:pointer;font-weight:700;font-size:15px;">＋ Add MP3s (from Files / iCloud)</label>
-      <input id="musicFiles" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" multiple style="display:none;" onchange="addTracks(this.files)">
+      <input id="musicFiles" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" multiple style="display:none;" onchange="addTracks(this.files); this.value='';">
       <div id="musicErr" class="sub" style="color:var(--over); margin-top:8px;"></div>
       <div class="sub" style="margin-top:10px;">Tap 🌅 / 🔥 / 🌙 on a track to set its pool (Warm-up / Intense / Cool-down).</div>
       <div id="trackList" style="margin-top:8px;"></div>
@@ -563,7 +564,7 @@
     <div class="card">
       <button style="width:100%; margin-bottom:8px;" onclick="exportFile()">⤓ Export all data (file)</button>
       <label for="importFile" style="display:block;text-align:center;padding:13px;border:1px solid var(--line);border-radius:14px;cursor:pointer;font-weight:700;">⤒ Import data file</label>
-      <input id="importFile" type="file" accept="application/json,.json" style="display:none;" onchange="importFile(this.files)">
+      <input id="importFile" type="file" accept="application/json,.json" style="display:none;" onchange="importFile(this.files); this.value='';">
       <button class="btn-ghost" style="width:100%; margin-top:8px;" onclick="exportAll()">📋 Copy all data</button>
     </div>
     <h2>Privacy &amp; your data</h2>
@@ -1229,6 +1230,7 @@ function exitWorkout(){
 /* ===================== LIVE HR (Web Bluetooth) ===================== */
 async function connectHR(){
   if(!("bluetooth" in navigator)){ toast("Open in Bluefy for live HR"); checkEnv(); return; }
+  if(HR._connecting) return; HR._connecting=true;   // ignore double-taps while a connect is already in flight
   try{
     const device=await navigator.bluetooth.requestDevice({ filters:[{services:["heart_rate"]}], optionalServices:["battery_service"] });
     HR.device=device; device.addEventListener("gattserverdisconnected", onHRDisconnect);
@@ -1245,6 +1247,7 @@ async function connectHR(){
     if(n==="NetworkError" || /already|in use|gatt/i.test((e&&e.message)||"")) toast("Strap busy — quit the Polar Beat app (or anything else using it) and retry");
     else toast("HR connect failed — make sure the H10 is on, worn, and snug, then retry");
   }
+  finally{ HR._connecting=false; }
 }
 async function readBattery(server){   // optional: warn on a low coin-cell (the classic mid-run dropout cause)
   try{
@@ -1861,8 +1864,8 @@ function renderHistory(){
     var pr=(r.mafSpeed!=null && r.mafSpeed===bestMaf())?'<span class="badge">🏅 best pace</span>':'';
     var gc=(r.game&&r.game.grade)?'<span class="gchip grade-'+r.game.grade+'">'+r.game.grade+(r.game.approx?'~':'')+'</span>':'';
     var info=document.createElement("div"); info.className="hmain"; info.innerHTML="<b>"+escTxt(r.title.replace(/^\d+ · /,""))+"</b>"+gc+pr+"<br><small>"+dt+" · "+(bits.join(" · ")||"no HR logged")+"</small><div class=\"feed-insight\">"+runInsight(r)+"</div>"; info.onclick=function(){ openSession(r.id); };
-    var cp=document.createElement("button"); cp.className="btn-ghost"; cp.style.cssText="flex:0;padding:4px 10px;font-size:15px;"; cp.textContent="📋"; cp.title="Copy this session's log (to send to Claude)"; cp.onclick=function(){ copySavedLog(r.id); };
-    var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:4px 10px;font-size:13px;"; del.textContent="✕"; del.title="Delete this session"; del.onclick=function(){ deleteSession(r.id); };
+    var cp=document.createElement("button"); cp.className="btn-ghost"; cp.style.cssText="flex:0;padding:9px 12px;font-size:15px;"; cp.textContent="📋"; cp.title="Copy this session's log (to send to Claude)"; cp.setAttribute("aria-label","Copy session log"); cp.onclick=function(){ copySavedLog(r.id); };
+    var del=document.createElement("button"); del.className="btn-ghost"; del.style.cssText="flex:0;padding:9px 12px;font-size:13px;"; del.textContent="✕"; del.title="Delete this session"; del.setAttribute("aria-label","Delete session"); del.onclick=function(){ deleteSession(r.id); };
     el.appendChild(info); el.appendChild(cp); el.appendChild(del); list.appendChild(el);
   });
   renderTrends();
