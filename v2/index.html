@@ -1383,7 +1383,7 @@ var RunGame = (function(){
   function frame(ts){
     raf=requestAnimationFrame(frame);
     if(!ctx){ resize(); if(!ctx) return; }
-    if(!last) last=ts; var dt=ts-last; if(dt<26) return; last=ts; var d=Math.min(60,dt)/16.7;
+    if(!last) last=ts; var dt=ts-last; if(dt<32) return; last=ts; var d=Math.min(60,dt)/16.7;   // ~30fps cap (battery)
     var c=activeCeiling(), bpm=HR.bpm, z=mafZone(bpm);
     var stg=(typeof cur!=="undefined"&&cur&&cur.stages[idx])?cur.stages[idx]:null;
     var phase=stg?(stg.mood==="intense"?"work":(stg.mood==="warmup"?"warm":"recover")):"work";
@@ -1558,7 +1558,7 @@ function beep(freq,ms){
 }
 function chime(){ beep(660,140); setTimeout(()=>beep(990,220),160); }
 async function requestWake(){ try{ if("wakeLock" in navigator) wakeLock=await navigator.wakeLock.request("screen"); }catch(e){} }
-function releaseWake(){ try{ if(wakeLock){ wakeLock.release(); wakeLock=null; } }catch(e){} }
+function releaseWake(){ try{ if(wakeLock){ var w=wakeLock; wakeLock=null; w.release().catch(function(){}); } }catch(e){} }
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"){ unlockAudio(); if(running){ requestWake(); catchUp(); } if(PROFILE.playerView!=="gauge" && $("player") && $("player").classList.contains("active")) RunGame.start(); } else { saveDraft(); RunGame.stop(); } });   // resume the alarm AudioContext after any iOS interruption
 window.addEventListener("pagehide", function(){ saveDraft(); });   // last chance before iOS may evict the page
 
@@ -1623,7 +1623,7 @@ function computeDerived(rec){
   var overPct = rec.durationSec? Math.round((rec.overSec||0)/rec.durationSec*1000)/10 : 0;
   var mafTestSpeed=null;
   if(rec.isTest && hr.length){ var sps=[]; for(var m=0;m<hr.length;m++){ if(Math.abs(hr[m][1]-cl)<=2){ var s=speedAt(rec,hr[m][0]); if(s!=null) sps.push(s); } } if(sps.length) mafTestSpeed=Math.round(sps.reduce(function(a,b){return a+b;},0)/sps.length*100)/100; }
-  return { zoneSec:z, overPct:overPct, mafTestSpeed:mafTestSpeed };
+  return { zoneSec:z, overPct:overPct, mafTestSpeed:mafTestSpeed, decoupling:decoupling(rec) };   // precompute so Trends never re-scans the trace
 }
 function autoSaveSession(){            // called at end of every run — saves immediately to IndexedDB
   if(!SESS) return;
@@ -2393,7 +2393,12 @@ function renderTrends(){
   var vol=weeklyVolume();
   barTrend($("trVol"), vol, {color:"var(--z-aerobic)", goal:150, unit:""});
   if($("trVolCap")) $("trVolCap").textContent=volCaption(vol);
-  var decPts=SESSIONS.map(function(s){return {t:new Date(s.date).getTime(), v:decoupling(s)};}).filter(function(p){return p.v!=null;}).sort(function(a,b){return a.t-b.t;});
+  var decPts=SESSIONS.map(function(s){
+    var dc;
+    if(s.derived && ('decoupling' in s.derived)) dc=s.derived.decoupling;                         // cached at save
+    else { dc=decoupling(s); if(s.derived){ s.derived.decoupling=dc; putSessionDB(s); } }          // compute once for pre-existing runs, then cache
+    return {t:new Date(s.date).getTime(), v:dc};
+  }).filter(function(p){return p.v!=null;}).sort(function(a,b){return a.t-b.t;});
   lineTrend($("trRec"), decPts, {color:"var(--z-easy)", unit:"%", goal:5, fill:"rgba(79,163,255,.18)", empty:"Recovery shows once you've logged a steady run of 10 min or more."});
   if($("trRecCap")) $("trRecCap").textContent=decoupCaption(decPts);
 }
