@@ -698,8 +698,9 @@ const APP_VERSION = "2026.06.24";   // tagged onto feedback so reports map to a 
 var ZONE = { easy:"#4FA3FF", aerobic:"#3DDC6E", sweet:"#FFB02E", over:"#FF5A52", neutral:"#7B8493" };   // single source of truth for zone color in canvas/SVG renderers (mirrors the CSS --z-* tokens)
 
 /* ---- ZONE GAME tuning (precision-bullseye scoring) ---- */
-const GAME = { PLATEAU_LO:8, PLATEAU_HI:2, MAX_PTS:10, SLOPE:1, EASY_FLOOR:4, OVER_MIN:7, COMBO_STEP:30, MULT_CAP:5, DT_CAP:5, GRADE_S:90, GRADE_A:80, GRADE_B:68, GRADE_C:55 };
-const SCORE_VERSION = 2;
+const GAME = { PLATEAU_LO:10, PLATEAU_HI:2, MAX_PTS:10, SLOPE:1, EASY_FLOOR:4, OVER_MIN:7, COMBO_STEP:30, MULT_CAP:5, DT_CAP:5, GRADE_S:90, GRADE_A:80, GRADE_B:68, GRADE_C:55 };
+// full-reward band = cap-10 .. cap-2 (130–138 @ 140): the whole MAF aerobic zone scores equally (evidence: you self-select within MAF-10..MAF; neither end is superior)
+const SCORE_VERSION = 3;   // bumped: widened the reward band -> backfillGame re-grades history
 const RANKS = [[1,"Base Builder"],[3,"Aerobic Apprentice"],[5,"Zone Keeper"],[7,"Steady Strider"],[10,"MAF Master"]];
 
 /* ---- WORKOUTS (Claude updates this list) ----
@@ -730,7 +731,7 @@ const WORKOUTS = [
       {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:1, sec:300, cue:"Easy walk."},
       {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.8, incline:1, sec:300, cue:"Easy shuffle."},
       {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.2, incline:1, sec:1200, cue:"Hold HR 130–140."},
-      {name:"Sweet spot",    type:"jog",  mood:"intense",  speed:4.3, incline:1, sec:600, cue:"Nudge to 4.3 — aim for 137–140, the top of the zone. Stay UNDER 140."},
+      {name:"Aerobic hold",  type:"jog",  mood:"intense",  speed:4.3, incline:1, sec:600, cue:"Find a pace that holds you anywhere in your 130–140 zone — never over 140."},
       {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
     ]
   },
@@ -1496,7 +1497,7 @@ function applyPlayerView(){
 }
 function togglePlayerView(){ PROFILE.playerView=(PROFILE.playerView==="gauge")?"game":"gauge"; saveProfile(); applyPlayerView(); }
 function zoneColor(z){ return z==="over"?"var(--z-over)":z==="sweet"?"var(--z-sweet)":z==="aerobic"?"var(--z-aerobic)":"var(--z-easy)"; }
-function verdictText(z){ return z==="over"?"SLOW DOWN":z==="sweet"?"EASE UP":z==="aerobic"?"IN RANGE":"PUSH A BIT"; }
+function verdictText(z){ return z==="over"?"SLOW DOWN":z==="sweet"?"EASE UP":z==="aerobic"?"IN THE ZONE":"A TOUCH FASTER"; }   // below-zone says gently lift into the zone, never "push"
 function setHRUI(){
   const val=HR.bpm==null?"––":HR.bpm;
   $("homeBpm").textContent=val;
@@ -2385,7 +2386,7 @@ function runInsight(rec){
   if(overMin>3) return Math.round(overMin)+" min over "+cap+" — ease off a little earlier next time.";
   if(z){ var tot=(z.under+z.aerobic+z.sweet+z.over)||1, inPct=Math.round((z.aerobic+z.sweet)/tot*100);
     if(inPct>=80) return inPct+"% in the aerobic zone — textbook base work. 👍";
-    if(rec.avg<cap-12) return "Avg "+rec.avg+" bpm — pretty easy; room to nudge into 132–138.";
+    if(rec.avg<cap-12) return "Avg "+rec.avg+" bpm — nice and easy; room to settle into your "+(cap-10)+"–"+cap+" aerobic zone.";
     return inPct+"% in zone · avg "+rec.avg+" bpm"+(overMin>=0.5?(" · "+overMin.toFixed(1)+" min over"):", clean under the cap.");
   }
   return "Avg "+rec.avg+" bpm"+(overMin>=0.5?(" · "+overMin.toFixed(1)+" min over the cap."):" · clean run under the cap.");
