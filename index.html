@@ -365,9 +365,9 @@
             <circle cx="60" cy="60" r="50" fill="none" stroke="var(--surface3)" stroke-width="11"/>
             <circle id="homeRing" cx="60" cy="60" r="50" fill="none" stroke="url(#ringgrad)" stroke-width="11" stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="314" stroke-dashoffset="314"/>
           </svg>
-          <div class="ring-center"><span id="homeWeek">0</span><small>/3</small></div>
+          <div class="ring-center"><span id="homeWeek">0</span><small id="homeWeekTgt">/90</small></div>
         </div>
-        <div class="ring-lbl">runs this week</div>
+        <div class="ring-lbl" id="ringLbl">min this week</div>
       </div>
       <div class="mini-stats">
         <div class="ms-row"><span>MAF cap</span><b id="ceilBig">140</b></div>
@@ -2250,7 +2250,7 @@ function renderWeekStrip(){
     '<div class="sub" style="flex:0 0 auto;text-align:right;font-size:11px;white-space:nowrap;">'+n7+' this week'+(st>1?(" · 🔥 "+st+"-wk streak"):"")+'</div>';
 }
 function renderHome(){
-  var today=WORKOUTS.find(function(w){return w.id===TODAY_ID;})||WORKOUTS[0];
+  var today=todayWorkout();
   var mins=Math.round(today.stages.reduce(function(a,s){return a+s.sec;},0)/60);
   if($("homeTodayTitle")) $("homeTodayTitle").textContent=today.title.replace(/^\d+ · /,"");
   if($("homeTodayDur")) $("homeTodayDur").textContent=mins+" min";
@@ -2258,9 +2258,11 @@ function renderHome(){
   if($("homeStartBtn")) $("homeStartBtn").onclick=function(){ startWorkout(today); };
   if($("homeDate")) $("homeDate").textContent=new Date().toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
   if($("greet")){ var h=new Date().getHours(); $("greet").textContent=h<12?"Good morning":h<17?"Ready to run?":"Evening run?"; }
-  var now=Date.now(), wk=SESSIONS.filter(function(s){ return (now-new Date(s.date).getTime())<6048e5; }).length;
-  if($("homeWeek")) $("homeWeek").textContent=wk;
-  var ring=$("homeRing"); if(ring){ var C=2*Math.PI*50, f=Math.max(0,Math.min(1,wk/3)); ring.setAttribute("stroke-dashoffset",(C*(1-f)).toFixed(1)); }
+  var done=weekMinutes(weekStart(new Date())), target=weekTarget();
+  if($("homeWeek")) $("homeWeek").textContent=done;
+  if($("homeWeekTgt")) $("homeWeekTgt").textContent="/"+target;
+  if($("ringLbl")) $("ringLbl").textContent="min this week"+(isDeloadWeek()?" · deload":"");
+  var ring=$("homeRing"); if(ring){ var C=2*Math.PI*50, f=Math.max(0,Math.min(1, target?done/target:0)); ring.setAttribute("stroke-dashoffset",(C*(1-f)).toFixed(1)); }
   var last=SESSIONS[0];
   if($("homeLast")){
     if(last){ var d=new Date(last.date).toLocaleDateString(undefined,{month:"short",day:"numeric"});
@@ -2488,6 +2490,22 @@ function anchorSpeed(){
 }
 function ssHR(rec, anchor){ if(anchor==null) return null; var hr=rec.hr||[], sum=0,n=0; for(var i=0;i<hr.length;i++){ var sp=speedAt(rec,hr[i][0]); if(sp!=null && Math.abs(sp-anchor)<=0.15){ sum+=hr[i][1]; n++; } } return n>=15? Math.round(sum/n):null; }
 function weekStart(d){ var x=new Date(d); var day=(x.getDay()+6)%7; x.setHours(0,0,0,0); x.setDate(x.getDate()-day); return x.getTime(); }
+/* ---- weekly aerobic-volume program: gentle ~10%/wk ramp, deload every 4th week (progress = MORE minutes, never higher HR) ---- */
+function weekMinutes(weekMs){ var m=0; SESSIONS.forEach(function(s){ if(weekStart(s.date)===weekMs) m+=(s.durationSec||0)/60; }); return Math.round(m); }
+function isDeloadWeek(){ return (Math.floor(weekStart(new Date())/6048e5) % 4) === 0; }
+function weekTarget(){
+  var lw=weekMinutes(weekStart(new Date())-6048e5), base=lw>0?lw:90;   // base off last week's actual; 90-min seed for new/rest weeks
+  if(isDeloadWeek()) return Math.round(base*0.65);                     // recovery week
+  if(lw<=0) return base;                                               // first active week: meet, don't ramp
+  return Math.round(Math.min(base*1.10, base+30));                     // ~10% progression, capped at +30 min/wk
+}
+function todayWorkout(){   // steady base by default; feature the MAF test only when monthly-due
+  var baseW=WORKOUTS.find(function(w){return w.id==="today";})||WORKOUTS[0];
+  var testW=WORKOUTS.find(function(w){return w.id==="maftest";});
+  if(!testW || !SESSIONS.length) return baseW;
+  var lastTest=0; SESSIONS.forEach(function(s){ if(s.isTest){ var t=new Date(s.date).getTime(); if(t>lastTest) lastTest=t; } });
+  return (Date.now()-lastTest > 28*864e5) ? testW : baseW;             // ~monthly benchmark, else easy base
+}
 function weeklyVolume(){ var m={}; SESSIONS.forEach(function(s){ var z=s.derived&&s.derived.zoneSec; if(!z) return; var k=weekStart(s.date); m[k]=(m[k]||0)+(z.aerobic+z.sweet)/60; }); return Object.keys(m).map(Number).sort(function(a,b){return a-b;}).slice(-8).map(function(k){ return {t:k, v:Math.round(m[k])}; }); }
 function bestMaf(){ var b=null; SESSIONS.forEach(function(s){ if(s.mafSpeed!=null && (b==null||s.mafSpeed>b)) b=s.mafSpeed; }); return b; }
 function longestRun(){ var b=0; SESSIONS.forEach(function(s){ if((s.durationSec||0)>b) b=s.durationSec; }); return b; }
