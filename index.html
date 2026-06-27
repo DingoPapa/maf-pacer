@@ -1463,13 +1463,14 @@ var SCENE_SRC = ["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABUCAYAAAAh
 var sceneImgs = [], sceneReady = false;
 function loadSceneSprites(){ sceneImgs=[]; sceneReady=false; var have=SCENE_SRC.filter(Boolean).length; if(!have) return; var loaded=0; SCENE_SRC.forEach(function(src,i){ if(!src) return; var im=new Image(); im.onload=function(){ if(++loaded>=have) sceneReady=true; }; im.src=src; sceneImgs[i]=im; }); }
 var RunGame = (function(){
-  var cv=null, ctx=null, W=0, H=190, dpr=1, raf=0, last=0;
+  var cv=null, ctx=null, W=0, H=190, dpr=1, raf=0, last=0, vtW=72;   // vtW = cached width of the Gauge toggle, so the top-right HUD stays clear of it
   var runnerX=0.28, sx0=0, sx1=0, sx2=0, sparks=[], shake=0, legT=0;
   var dist=0, zsec=0, bIdx=0, bMix=1, coins=[], coinT=1.2, coinN=0, coinsRun=0, trail=[], cpTxt="", cpT=0, glow5=0, pulseT=0;
   var BIOMES=[{n:"Meadow",s:["#1e3a5f","#356b86"],a:"#3fae6e"},{n:"Forest",s:["#143a2c","#225b46"],a:"#2f9f5e"},{n:"Coast",s:["#163a52","#2f7fa6"],a:"#37b6cf"},{n:"City",s:["#262050","#473a78"],a:"#8a78e0"},{n:"Highlands",s:["#2a2030","#52415c"],a:"#b59ab0"},{n:"Night",s:["#0d1330","#1b2350"],a:"#5b6bd0"}], BSEC=300;
   function el(){ return document.getElementById("runCanvas"); }
   function resize(){ cv=el(); if(!cv) return; var r=cv.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1);
     W=Math.max(220,Math.round(r.width)); H=Math.round(r.height||190);
+    var _vt=$("viewToggle"); vtW=(_vt&&_vt.offsetWidth)?_vt.offsetWidth:72;   // measure once per layout, not per frame
     cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); ctx=cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.imageSmoothingEnabled=false; }
   function reset(){ runnerX=0.28; sx0=sx1=sx2=0; sparks=[]; shake=0; legT=0; dist=0; zsec=0; bIdx=0; bMix=1; coins=[]; coinT=1.2; coinN=0; coinsRun=0; trail=[]; cpTxt=""; cpT=0; glow5=0; pulseT=0; }
   function start(){ if(raf) return; cv=el(); if(!cv) return; resize(); last=0; raf=requestAnimationFrame(frame); }
@@ -1567,7 +1568,8 @@ var RunGame = (function(){
     ctx.textAlign="left"; ctx.font="bold 30px sans-serif"; ctx.fillStyle=bpm==null?"#9AA3B2":zc(z); ctx.fillText(bpm==null?"––":bpm,12,36);
     ctx.font="11px sans-serif"; ctx.fillStyle="#9AA3B2"; ctx.fillText("bpm · ≤ "+c,12,50);
     var coinTot=((PROFILE.game&&PROFILE.game.coins)||0)+coinsRun; ctx.fillStyle="#FFD24A"; ctx.beginPath(); ctx.arc(16,64,4,0,6.28); ctx.fill(); ctx.fillStyle="#FFE08A"; ctx.textAlign="left"; ctx.font="bold 12px sans-serif"; ctx.fillText(coinTot,25,68);
-    ctx.textAlign="right"; ctx.font="bold 13px sans-serif"; ctx.fillStyle="#cfe0ff"; ctx.fillText(fmtDist(dist),W-12,24); ctx.font="10px sans-serif"; ctx.fillStyle="#9AA3B2"; ctx.fillText(BIOMES[bIdx].n,W-12,38);
+    var hudR=W-(vtW+22);   // keep distance/biome left of the Gauge toggle (top-right) so they never overlap it
+    ctx.textAlign="right"; ctx.font="bold 13px sans-serif"; ctx.fillStyle="#cfe0ff"; ctx.fillText(fmtDist(dist),hudR,24); ctx.font="10px sans-serif"; ctx.fillStyle="#9AA3B2"; ctx.fillText(BIOMES[bIdx].n,hudR,38);
     var bt="", bc="#cfe0ff";
     if(bpm==null){ bt="Connect strap"; }
     else if(phase==="warm"){ bt="Ease in"; bc="#9fd0ff"; }
