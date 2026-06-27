@@ -589,9 +589,30 @@
   <section id="settings" class="screen">
     <h1>Settings</h1>
     <div class="card">
-      <label>MAF heart-rate ceiling (bpm)</label>
-      <input type="number" id="setCeil" inputmode="numeric" min="81" max="209" step="1" onchange="applySettings()">
-      <div class="sub" style="margin-top:6px;">Your ceiling = 180 − age − adjustment. Update it here if it changes (e.g., on a birthday).</div>
+      <label>Your MAF heart-rate ceiling</label>
+      <div style="font-size:34px; font-weight:800; margin:2px 0 10px; font-variant-numeric:tabular-nums;"><span id="mafResult">140</span> <span class="sub" style="font-size:14px; font-weight:600;">bpm</span></div>
+      <div style="display:flex; gap:10px; align-items:flex-end;">
+        <div style="flex:0 0 86px;">
+          <label style="font-size:11px;">Age</label>
+          <input type="number" id="setAge" inputmode="numeric" min="10" max="100" step="1" oninput="previewMaf()" placeholder="35">
+        </div>
+        <div style="flex:1; min-width:0;">
+          <label style="font-size:11px;">Your fitness situation</label>
+          <select id="setMafCat" onchange="previewMaf()" style="width:100%; font-size:15px; padding:11px 10px; border-radius:12px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); font-family:inherit;">
+            <option value="-10">Recovering from illness / on medication / in rehab</option>
+            <option value="-5">New or returning, injury-prone, or training inconsistently</option>
+            <option value="0">Training consistently &amp; healthy (about 1–2 years)</option>
+            <option value="5">2+ years, healthy, competing and still improving</option>
+          </select>
+        </div>
+      </div>
+      <div class="sub" id="mafPreview" style="margin-top:10px; line-height:1.5;"></div>
+      <button class="btn-primary" style="width:100%; margin-top:10px;" onclick="applyMafFormula()">Set my ceiling from this</button>
+      <details style="margin-top:12px;">
+        <summary class="sub" style="cursor:pointer;">Set the number manually instead</summary>
+        <input type="number" id="setCeil" inputmode="numeric" min="81" max="209" step="1" onchange="setManualCeiling()" style="margin-top:8px;">
+        <div class="sub" style="margin-top:6px;">Overrides the formula — use only if you know your aerobic-threshold HR (e.g. from a lab test). Maffetone's 180-formula is recommended for most.</div>
+      </details>
     </div>
     <div class="card">
       <label>Warn when within … bpm of the cap</label>
@@ -693,7 +714,7 @@ const SUPABASE_URL = "https://acavqbqaxktgetnwltfz.supabase.co";
 const SUPABASE_KEY = "sb_publishable_-F-E8fYqyql7DiZi7ODr5A_qzT1n6yH";
 var sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0, playerView:"game" };
+const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0, playerView:"game", age:null, mafAdj:0, ageSetAt:null };
 const APP_VERSION = "2026.06.24";   // tagged onto feedback so reports map to a build
 var ZONE = { easy:"#4FA3FF", aerobic:"#3DDC6E", sweet:"#FFB02E", over:"#FF5A52", neutral:"#7B8493" };   // single source of truth for zone color in canvas/SVG renderers (mirrors the CSS --z-* tokens)
 
@@ -759,6 +780,7 @@ const HR = { device:null, char:null, bpm:null, connected:false, zone:null, lastO
 /* ===================== INIT ===================== */
 function load(){
   try{ Object.assign(PROFILE, JSON.parse(localStorage.getItem("maf_profile")||"{}")); }catch(e){}
+  recomputeCeiling();   // auto-age the 180-formula ceiling if the user set their age
   applyProfileUI(); renderWorkouts(); checkEnv(); initMusic(); loadRunnerSprites(); loadDogSprites(); loadSceneSprites(); devInit(); authInit();   // renderHistory runs after IndexedDB loads (initMusic)
   window.addEventListener("online", function(){ flushQueue(); updateSyncStatus(); }); window.addEventListener("offline", updateSyncStatus); setInterval(updateSyncStatus, 60000);   // P2: flush on reconnect + keep status fresh
 }
@@ -989,8 +1011,12 @@ function applyProfileUI(){
   $("zoneTxt").textContent=(PROFILE.ceiling-10)+"–"+PROFILE.ceiling;
   $("sweetTxt").textContent=(PROFILE.ceiling-5)+"–"+PROFILE.ceiling;
   $("mCeil").textContent=PROFILE.ceiling;
+  if($("mafResult")) $("mafResult").textContent=PROFILE.ceiling;
+  if($("setAge")) $("setAge").value=(PROFILE.age!=null?PROFILE.age:"");
+  if($("setMafCat")) $("setMafCat").value=String(PROFILE.mafAdj||0);
   $("setCeil").value=PROFILE.ceiling;
   $("setWarn").value=PROFILE.warnMargin;
+  previewMaf();
   document.querySelectorAll(".uLbl").forEach(e=>e.textContent=PROFILE.units);
   $("unitMph").classList.toggle("sel",PROFILE.units==="mph");
   $("unitKmh").classList.toggle("sel",PROFILE.units==="kmh");
@@ -999,11 +1025,35 @@ function applyProfileUI(){
 }
 function setUnits(u){ PROFILE.units=u; applyProfileUI(); }
 function setSound(b){ PROFILE.sound=b; applyProfileUI(); }
-function applySettings(){
-  var cv=$("setCeil").value, wv=$("setWarn").value, c=parseInt(cv,10), w=parseInt(wv,10);
-  if(c>80&&c<210) PROFILE.ceiling=c; else if(cv!=="") toast("Ceiling must be 81–209 bpm");
-  if(w>=1&&w<=15) PROFILE.warnMargin=w; else if(wv!=="") toast("Warn margin must be 1–15 bpm");
-  saveProfile(); applyProfileUI();
+/* ---- MAF ceiling: the 180 formula (180 − age ± fitness adjustment), auto-aging ---- */
+function mafFromAge(age, adj){ age=age|0; if(age>0 && age<=16) return 165; var c=180-age+(adj||0); return Math.max(80, Math.min(200, c)); }
+function recomputeCeiling(){
+  if(PROFILE.age==null) return;                                  // manual ceiling — don't override
+  var extra=0; if(PROFILE.ageSetAt){ try{ extra=Math.floor((Date.now()-new Date(PROFILE.ageSetAt).getTime())/(365.25*864e5)); }catch(e){} }
+  PROFILE.ceiling=mafFromAge(PROFILE.age+Math.max(0,extra), PROFILE.mafAdj);
+}
+function previewMaf(){
+  var el=$("mafPreview"); if(!el) return;
+  var age=parseInt($("setAge").value,10), adj=parseInt($("setMafCat").value,10)||0;
+  if(!(age>0)){ el.textContent="Enter your age to calculate your MAF heart rate (180 − age, adjusted for your fitness situation)."; return; }
+  var c=mafFromAge(age,adj);
+  if(age<=16){ el.innerHTML="Under 16 → MAF ceiling <b>165 bpm</b>. Train at or under 165."; return; }
+  el.innerHTML="180 − "+age+(adj?(" "+(adj<0?"− "+Math.abs(adj):"+ "+adj)):"")+" = <b>"+c+" bpm</b>. Train at or under "+c+"; your aerobic zone is <b>"+(c-10)+"–"+c+"</b>.";
+}
+function applyMafFormula(){
+  var age=parseInt($("setAge").value,10), adj=parseInt($("setMafCat").value,10)||0;
+  if(!(age>=10&&age<=100)){ toast("Enter a valid age (10–100)"); return; }
+  PROFILE.age=age; PROFILE.mafAdj=adj; PROFILE.ageSetAt=new Date().toISOString();
+  recomputeCeiling(); saveProfile(); applyProfileUI(); toast("MAF ceiling set to "+PROFILE.ceiling+" bpm");
+}
+function setManualCeiling(){
+  var c=parseInt($("setCeil").value,10);
+  if(c>80&&c<210){ PROFILE.ceiling=c; PROFILE.age=null; PROFILE.ageSetAt=null; saveProfile(); applyProfileUI(); toast("Ceiling set manually to "+c+" bpm"); }
+  else toast("Ceiling must be 81–209 bpm");
+}
+function applySettings(){   // warn margin only (ceiling is set by the MAF wizard / manual override above)
+  var wv=$("setWarn").value, w=parseInt(wv,10);
+  if(w>=1&&w<=15){ PROFILE.warnMargin=w; saveProfile(); applyProfileUI(); } else if(wv!=="") toast("Warn margin must be 1–15 bpm");
 }
 function checkEnv(){
   const b=$("envBanner"); const secure=location.protocol==="https:"||location.hostname==="localhost";
