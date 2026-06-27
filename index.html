@@ -629,6 +629,11 @@
       <div class="sub" style="margin-top:6px;">Beeps count down the last 3 sec of each stage, chime on changes, and alert when HR goes over the ceiling.</div>
     </div>
     <div class="card">
+      <label>Voice cues</label>
+      <div class="toggle"><button id="vceOn" onclick="setVoice(true)">On</button><button id="vceOff" onclick="setVoice(false)">Off</button></div>
+      <div class="sub" style="margin-top:6px;">Speaks each stage as it begins and gently warns near/over your cap, so you can keep your eyes off the screen. Uses your device's built-in voice; music ducks while it speaks.</div>
+    </div>
+    <div class="card">
       <label>Your data</label>
       <div class="sub" style="margin-bottom:10px;">Everything is stored only in this browser, on this device — nothing is ever uploaded. Anyone who can unlock your phone can open it. Wipe it anytime:</div>
       <button class="btn-danger" style="width:100%;" onclick="clearData()">Clear all saved data</button>
@@ -714,7 +719,7 @@ const SUPABASE_URL = "https://acavqbqaxktgetnwltfz.supabase.co";
 const SUPABASE_KEY = "sb_publishable_-F-E8fYqyql7DiZi7ODr5A_qzT1n6yH";
 var sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0, playerView:"game", age:null, mafAdj:0, ageSetAt:null };
+const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0, playerView:"game", age:null, mafAdj:0, ageSetAt:null, voice:false };
 const APP_VERSION = "2026.06.24";   // tagged onto feedback so reports map to a build
 var ZONE = { easy:"#4FA3FF", aerobic:"#3DDC6E", sweet:"#FFB02E", over:"#FF5A52", neutral:"#7B8493" };   // single source of truth for zone color in canvas/SVG renderers (mirrors the CSS --z-* tokens)
 
@@ -1022,9 +1027,28 @@ function applyProfileUI(){
   $("unitKmh").classList.toggle("sel",PROFILE.units==="kmh");
   $("sndOn").classList.toggle("sel",PROFILE.sound);
   $("sndOff").classList.toggle("sel",!PROFILE.sound);
+  if($("vceOn")) $("vceOn").classList.toggle("sel",PROFILE.voice);
+  if($("vceOff")) $("vceOff").classList.toggle("sel",!PROFILE.voice);
 }
 function setUnits(u){ PROFILE.units=u; applyProfileUI(); }
-function setSound(b){ PROFILE.sound=b; applyProfileUI(); }
+function setSound(b){ PROFILE.sound=b; applyProfileUI(); saveProfile(); }
+/* ---- voice cues (opt-in; on-device speechSynthesis, no network) ---- */
+function setVoice(b){
+  PROFILE.voice=b; applyProfileUI(); saveProfile();
+  if(b) say("Voice cues on.");                                   // confirm + unlock TTS in the enabling tap (iOS needs a gesture)
+  else if('speechSynthesis' in window){ try{ window.speechSynthesis.cancel(); }catch(e){} }
+}
+function say(text){
+  if(!PROFILE.voice || !text || !('speechSynthesis' in window)) return;
+  try{
+    window.speechSynthesis.cancel();                              // never queue/overlap cues
+    var u=new SpeechSynthesisUtterance(String(text)); u.rate=1; u.pitch=1; u.volume=1;
+    var a=$("audioEl");
+    if(a && !a.paused){ var v=a.volume; a.volume=0.18; u.onend=u.onerror=function(){ try{ a.volume=v; }catch(e){} }; }   // duck music while speaking
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+function speakStage(){ if(!PROFILE.voice || !cur || !cur.stages[idx]) return; var s=cur.stages[idx]; say(s.name + (s.cue?(". "+s.cue):"")); }
 /* ---- MAF ceiling: the 180 formula (180 − age ± fitness adjustment), auto-aging ---- */
 function mafFromAge(age, adj){ age=age|0; if(age>0 && age<=16) return 165; var c=180-age+(adj||0); return Math.max(80, Math.min(200, c)); }
 function recomputeCeiling(){
@@ -1138,6 +1162,7 @@ function loadStage(){
   updateRec();
   updateGameHUD(); var gh=$("ghud"); if(gh) gh.classList.toggle("paused", cur.stages[idx].mood!=="intense");
   applyPlayerView();
+  if(running) speakStage();   // announce the stage on transitions during a run
 }
 function renderStageValues(){
   const s=cur.stages[idx], a=SESS.actuals[idx];
@@ -1196,7 +1221,7 @@ function startTick(){
   },200);
 }
 function play(){
-  running=true; $("btnPlay").textContent="Pause"; unlockAudio(); requestWake(); startTick();
+  running=true; $("btnPlay").textContent="Pause"; unlockAudio(); requestWake(); startTick(); speakStage();
   if(PROFILE.playerView!=="gauge") RunGame.start();
   if(!workoutMusicCued){            // auto-start music ONCE, on the first Start; manual control thereafter
     workoutMusicCued=true;
@@ -1359,6 +1384,10 @@ function onHRValue(e){
       if(z==="sweet" && HR.zone!=="over") warnBeep();                  // entered the amber "ease up" band
       else if(z==="over"){ overAlarm(true); HR.lastOverBeep=Date.now(); } // over the cap — alarm + brief music duck
       else if(HR.zone==="over") beep(700,120);                          // dropped back under the cap
+      if(PROFILE.voice && Date.now()-(HR._lastVoice||0)>8000){          // spoken cue (throttled; never says "push")
+        if(z==="over"){ HR._lastVoice=Date.now(); say("Over your cap. Ease off."); }
+        else if(z==="sweet" && HR.zone!=="over"){ HR._lastVoice=Date.now(); say("Near your cap."); }
+      }
       HR.zone=z;
     }
     if(z==="over" && Date.now()-HR.lastOverBeep>=15000){ overAlarm(false); HR.lastOverBeep=Date.now(); } // re-alarm if lingering over
