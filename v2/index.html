@@ -117,6 +117,7 @@
   .next{color:#c7d0f0; font-size:12px; margin-top:8px; opacity:.9;}
   .controls{display:grid; grid-template-columns:1fr 2fr 1fr; gap:10px; padding:10px 14px 4px;}
   .finishrow{ padding:6px 14px calc(12px + env(safe-area-inset-bottom)); }
+  #player.incl-locked .adjrow .adjtile.incl{ display:none; }   /* treadmill incline broken: hide the unusable stepper; the speed tile fills the row */
   .controls button{padding:16px 10px;}
   .stepbadge{font-size:12px; color:var(--muted);}
   svg{width:100%; height:160px; display:block;}
@@ -465,7 +466,7 @@
           <div class="adjlbl" id="mSpeedLbl">Speed</div>
           <div class="step"><button onclick="adjust('speed',-1)">–</button><button onclick="adjust('speed',1)">+</button></div>
         </div>
-        <div class="adjtile">
+        <div class="adjtile incl">
           <div class="adjval" id="mIncline">1%</div>
           <div class="adjlbl" id="mInclineLbl">Incline</div>
           <div class="step"><button onclick="adjust('incline',-1)">–</button><button onclick="adjust('incline',1)">+</button></div>
@@ -651,6 +652,11 @@
       <div class="toggle"><button id="unitMph" onclick="setUnits('mph')">mph</button><button id="unitKmh" onclick="setUnits('kmh')">km/h</button></div>
     </div>
     <div class="card">
+      <label>Treadmill incline</label>
+      <div class="toggle"><button id="inclWork" onclick="setInclineBroken(false)">Working</button><button id="inclBroke" onclick="setInclineBroken(true)">Broken (flat)</button></div>
+      <div class="sub" style="margin-top:6px;">If your treadmill's incline is broken, set this to <b>Broken</b> — every workout runs flat (0%) and the incline stepper is hidden. Your heart rate still governs everything, so the training is unaffected. Switch back to <b>Working</b> when it's repaired.</div>
+    </div>
+    <div class="card">
       <label>Audio cues</label>
       <div class="toggle"><button id="sndOn" onclick="setSound(true)">On</button><button id="sndOff" onclick="setSound(false)">Off</button></div>
       <div class="sub" style="margin-top:6px;">Beeps count down the last 3 sec of each stage, chime on changes, and alert when HR goes over the ceiling.</div>
@@ -746,7 +752,7 @@ const SUPABASE_URL = "https://acavqbqaxktgetnwltfz.supabase.co";
 const SUPABASE_KEY = "sb_publishable_-F-E8fYqyql7DiZi7ODr5A_qzT1n6yH";
 var sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0, playerView:"game", age:null, mafAdj:0, ageSetAt:null, voice:false };
+const PROFILE = { ceiling:140, units:"mph", sound:true, warnMargin:3, goalSpeed:5.0, playerView:"game", age:null, mafAdj:0, ageSetAt:null, voice:false, inclineLocked:null };   // inclineLocked: null = treadmill incline works; a number (e.g. 0) = locked at that % (broken treadmill)
 const APP_VERSION = "2026.06.24";   // tagged onto feedback so reports map to a build
 var ZONE = { easy:"#4FA3FF", aerobic:"#3DDC6E", sweet:"#FFB02E", over:"#FF5A52", neutral:"#7B8493" };   // single source of truth for zone color in canvas/SVG renderers (mirrors the CSS --z-* tokens)
 
@@ -1056,9 +1062,14 @@ function applyProfileUI(){
   $("sndOff").classList.toggle("sel",!PROFILE.sound);
   if($("vceOn")) $("vceOn").classList.toggle("sel",PROFILE.voice);
   if($("vceOff")) $("vceOff").classList.toggle("sel",!PROFILE.voice);
+  if($("inclWork")) $("inclWork").classList.toggle("sel",PROFILE.inclineLocked==null);
+  if($("inclBroke")) $("inclBroke").classList.toggle("sel",PROFILE.inclineLocked!=null);
 }
 function setUnits(u){ PROFILE.units=u; applyProfileUI(); }
 function setSound(b){ PROFILE.sound=b; applyProfileUI(); saveProfile(); }
+/* ---- treadmill incline lock (for a broken incline motor; reversible) ---- */
+function applyInclineLock(){ var p=$("player"); if(p) p.classList.toggle("incl-locked", PROFILE.inclineLocked!=null); }
+function setInclineBroken(b){ PROFILE.inclineLocked = b?0:null; applyProfileUI(); saveProfile(); applyInclineLock(); toast(b?"Incline marked broken — workouts now run flat (0%)":"Incline back to normal"); }
 /* ---- voice cues (opt-in; on-device speechSynthesis, no network) ---- */
 function setVoice(b){
   PROFILE.voice=b; applyProfileUI(); saveProfile();
@@ -1156,8 +1167,8 @@ function renderCard(w, wrap, featured){
 function newSession(w){
   return {
     title:w.title, isTest:!!w.isTest,
-    plan:w.stages.map(s=>({name:s.name,type:s.type,mood:s.mood,speed:s.speed,incline:s.incline,sec:s.sec})),
-    actuals:w.stages.map(s=>({speed:s.speed, incline:s.incline})),
+    plan:w.stages.map(s=>({name:s.name,type:s.type,mood:s.mood,speed:s.speed,incline:(PROFILE.inclineLocked!=null?PROFILE.inclineLocked:s.incline),sec:s.sec})),
+    actuals:w.stages.map(s=>({speed:s.speed, incline:(PROFILE.inclineLocked!=null?PROFILE.inclineLocked:s.incline)})),   // incline broken → plan==actual==locked value, so it logs flat with no false "deviation"
     adjustments:[], hr:[], rr:[], endSec:0, stats:null,
     live:{points:0,combo:0,mult:1,maxCombo:0,lastT:null,lastIdx:null}
   };
@@ -1182,13 +1193,13 @@ function loadStage(){
   renderStageValues();
   remain=s.sec; renderTimer();
   const n=cur.stages[idx+1];
-  $("nextLine").textContent = n ? `Up next: ${n.name} · ${n.speed===null?"hold":n.speed.toFixed(1)+" "+PROFILE.units} · ${n.incline}%` : "Up next: finish 🏁";
+  $("nextLine").textContent = n ? `Up next: ${n.name} · ${n.speed===null?"hold":n.speed.toFixed(1)+" "+PROFILE.units}${PROFILE.inclineLocked!=null?"":" · "+n.incline+"%"}` : "Up next: finish 🏁";
   updateProgress();
   reactToMood();   // switch the music pool to match this stage's intensity
   drawGauge();     // render the HR zone gauge for this stage's ceiling
   updateRec();
   updateGameHUD(); var gh=$("ghud"); if(gh) gh.classList.toggle("paused", cur.stages[idx].mood!=="intense");
-  applyPlayerView();
+  applyPlayerView(); applyInclineLock();
   if(running) speakStage();   // announce the stage on transitions during a run
 }
 function renderStageValues(){
@@ -1209,6 +1220,7 @@ function renderStageValues(){
 }
 function adjust(varName, dir){
   if(!SESS) return;
+  if(varName==='incline' && PROFILE.inclineLocked!=null) return;   // incline locked (treadmill repair) — stepper is hidden, this is belt-and-suspenders
   const a=SESS.actuals[idx], s=cur.stages[idx];
   const step = varName==='speed'?0.1:0.5;
   let base = a[varName];
