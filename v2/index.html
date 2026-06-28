@@ -764,8 +764,8 @@ const WORKOUTS = [
     id:"today", title:"Steady Base — 45 min", tag:"Easy aerobic volume · all under 140", isTest:false,
     stages:[
       {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:0, sec:300,  cue:"Easy walk. Let your heart rate settle into the low 100s."},
-      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.9, incline:0, sec:240,  cue:"Gentle shuffle — let your HR rise on its own, no rush into the band."},
-      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.2, incline:0, sec:1860, cue:"Hold HR 132–138 at ~4.2. This is base-building: easy and steady is the whole point. Touch 140 → ease off. Chase the heart rate, not the pace."},
+      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.6, incline:0, sec:240,  cue:"Gentle shuffle — let your HR rise on its own, no rush into the band."},
+      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:3.8, incline:0, sec:1860, cue:"Hold HR 132–138 at ~3.8. This is base-building: easy and steady is the whole point. Touch 140 → ease off. Chase the heart rate, not the pace."},
       {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300,  cue:"Easy walk to finish. Let your HR come down."}
     ]
   },
@@ -773,8 +773,8 @@ const WORKOUTS = [
     id:"long60", title:"2 · Long Steady — 60 min", tag:"Once a week · let pace ease as HR drifts", isTest:false,
     stages:[
       {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:0, sec:300, cue:"Easy walk."},
-      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.9, incline:0, sec:300, cue:"Easy shuffle."},
-      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.2, incline:0, sec:2700, cue:"Hold HR 130–138. As HR drifts up over the hour, DROP the speed — chase the heart rate, not the pace."},
+      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.6, incline:0, sec:300, cue:"Easy shuffle."},
+      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:3.8, incline:0, sec:2700, cue:"Hold HR 130–138. As HR drifts up over the hour, DROP the speed — chase the heart rate, not the pace."},
       {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish. Great work."}
     ]
   },
@@ -782,9 +782,9 @@ const WORKOUTS = [
     id:"steady45", title:"3 · Steady + Sweet Spot — 45 min", tag:"MAF run with a top-of-zone finish", isTest:false,
     stages:[
       {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:0, sec:300, cue:"Easy walk."},
-      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.9, incline:0, sec:300, cue:"Easy shuffle."},
-      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:4.3, incline:0, sec:1200, cue:"Hold HR 130–140."},
-      {name:"Aerobic hold",  type:"jog",  mood:"intense",  speed:4.4, incline:0, sec:600, cue:"Find a pace that holds you anywhere in your 130–140 zone — never over 140."},
+      {name:"Ease in",       type:"jog",  mood:"warmup",   speed:3.6, incline:0, sec:300, cue:"Easy shuffle."},
+      {name:"MAF steady",    type:"jog",  mood:"intense",  speed:3.8, incline:0, sec:1200, cue:"Hold HR 130–140."},
+      {name:"Aerobic hold",  type:"jog",  mood:"intense",  speed:3.9, incline:0, sec:600, cue:"Find a pace that holds you anywhere in your 130–140 zone — never over 140."},
       {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
     ]
   },
@@ -792,7 +792,7 @@ const WORKOUTS = [
     id:"maftest", title:"Monthly MAF Test", tag:"Your benchmark · hold HR 140 for 15 min, log the pace", isTest:true,
     stages:[
       {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:0, sec:300, cue:"Easy walk."},
-      {name:"Build",         type:"jog",  mood:"warmup",   speed:4.0, incline:0, sec:300, cue:"Ease up toward MAF."},
+      {name:"Build",         type:"jog",  mood:"warmup",   speed:3.7, incline:0, sec:300, cue:"Ease up toward MAF."},
       {name:"Settle at MAF", type:"hold", mood:"intense",  speed:null, incline:0, sec:300, cue:"Use the steppers — set the speed so HR sits exactly at 140."},
       {name:"TEST hold",     type:"hold", mood:"intense",  speed:null, incline:0, sec:900, cue:"Hold HR at 140 for 15 min. The speed you settle on is your score (it's logged)."},
       {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300, cue:"Easy walk to finish."}
