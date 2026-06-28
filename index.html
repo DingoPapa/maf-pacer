@@ -789,6 +789,14 @@ const WORKOUTS = [
     ]
   },
   {
+    id:"recovery", title:"Recovery — 30 min", tag:"Short & gentle · low end of your zone · recovery around PT", isTest:false,
+    stages:[
+      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:0, sec:300,  cue:"Easy walk to loosen up."},
+      {name:"Easy jog",      type:"jog",  mood:"intense",  speed:3.5, incline:0, sec:1200, cue:"Very easy — sit at the LOW end of your zone (~130–135). This is recovery, not training. Keep it gentle and conversational; back off if HR creeps up."},
+      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:0, sec:300,  cue:"Easy walk to finish."}
+    ]
+  },
+  {
     id:"maftest", title:"Monthly MAF Test", tag:"Your benchmark · hold HR 140 for 15 min, log the pace", isTest:true,
     stages:[
       {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:0, sec:300, cue:"Easy walk."},
@@ -800,8 +808,12 @@ const WORKOUTS = [
   }
 ];
 
-/* Which workout is featured under "Today's workout" (Claude sets this each cycle). */
-const TODAY_ID = "maftest";
+/* Weekly training schedule — day-of-week (getDay: 0=Sun..6=Sat) → workout id, or 'pt'/'rest'.
+   Mon/Tue steady · Wed short · Thu unit PT (the only hard day) · Fri short recovery · Sat long · Sun rest.
+   Evidence-based (polarized 80/20 + Maffetone): every self-directed day stays easy/sub-cap;
+   DURATION waves (longer when fresh, short around PT), intensity never does. */
+const WEEK_PLAN = { 0:"rest", 1:"today", 2:"today", 3:"recovery", 4:"pt", 5:"recovery", 6:"long60" };
+const TODAY_ID = "maftest";   // legacy fallback id used by the dev panel
 
 /* ===================== STATE ===================== */
 const $ = id => document.getElementById(id);
@@ -1137,7 +1149,7 @@ function avgOf(a){ return a.reduce((x,y)=>x+y,0)/a.length; }
 
 /* ===================== WORKOUT LIST ===================== */
 function renderWorkouts(){
-  const today = WORKOUTS.find(w=>w.id===TODAY_ID) || WORKOUTS[0];
+  const today = todayWorkout();
   $("todayWorkout").innerHTML=""; renderCard(today, $("todayWorkout"), true);
   const others=$("workoutList"); others.innerHTML="";
   WORKOUTS.forEach(w=>{ if(w!==today) renderCard(w, others, false); });
@@ -2260,24 +2272,45 @@ function runEF(rec){   // avg speed / avg HR across intense stages (mph per bpm)
   return (sp/sec)/(hr/sec);
 }
 function runPaceAtMaf(rec){ var ef=runEF(rec); return ef==null?null:Math.round(ef*(rec.ceiling||140)*100)/100; }   // projected steady speed AT the cap
-function renderWeekStrip(){
+function renderWeekStrip(){   // your planned week (Mon–Sun): run / PT / rest, today highlighted, ✓ when done
   var el=$("weekStrip"); if(!el) return;
-  var today=new Date(); today.setHours(0,0,0,0);
+  var t=new Date(); t.setHours(0,0,0,0);
   var ran={}; SESSIONS.forEach(function(s){ var d=new Date(s.date); d.setHours(0,0,0,0); ran[d.getTime()]=1; });
-  var dots="", n7=0, L="SMTWTFS";
-  for(var i=6;i>=0;i--){ var d=new Date(today.getTime()-i*864e5), on=!!ran[d.getTime()]; if(on) n7++;
-    dots+='<div style="flex:1;text-align:center;"><div style="height:7px;border-radius:4px;background:'+(on?"var(--accent)":"var(--surface-hi)")+'"></div><div class="sub" style="font-size:10px;margin-top:4px;">'+L[d.getDay()]+'</div></div>'; }
-  var st=(typeof weekStreak==="function")?weekStreak():0;
-  el.innerHTML='<div style="flex:1;display:flex;gap:5px;">'+dots+'</div>'+
-    '<div class="sub" style="flex:0 0 auto;text-align:right;font-size:11px;white-space:nowrap;">'+n7+' this week'+(st>1?(" · 🔥 "+st+"-wk streak"):"")+'</div>';
+  var monday=new Date(t); monday.setDate(monday.getDate()-((t.getDay()+6)%7));   // Monday of the current week
+  var L=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], cells="";
+  for(var i=0;i<7;i++){
+    var d=new Date(monday.getTime()+i*864e5), dow=d.getDay(), id=WEEK_PLAN[dow];
+    var kind=(id==="pt")?"pt":(id==="rest")?"rest":"run";
+    var done=!!ran[d.getTime()], isToday=(d.getTime()===t.getTime());
+    var label=kind==="pt"?"PT":kind==="rest"?"Rest":(done?"✓":"Run");
+    var bg=done?"var(--accent)":kind==="pt"?"rgba(255,176,46,.20)":"var(--surface-hi)";
+    var fg=done?"#0a1430":kind==="pt"?"var(--z-sweet)":"var(--muted)";
+    cells+='<div style="flex:1;text-align:center;">'+
+      '<div class="sub" style="font-size:10px;margin-bottom:4px;'+(isToday?"color:var(--ink);font-weight:800;":"")+'">'+L[i]+'</div>'+
+      '<div style="height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;background:'+bg+';color:'+fg+';'+(isToday?"box-shadow:0 0 0 2px var(--accent);":"")+'">'+label+'</div>'+
+    '</div>';
+  }
+  el.innerHTML='<div style="flex:1;display:flex;gap:5px;">'+cells+'</div>';
 }
 function renderHome(){
-  var today=todayWorkout();
-  var mins=Math.round(today.stages.reduce(function(a,s){return a+s.sec;},0)/60);
-  if($("homeTodayTitle")) $("homeTodayTitle").textContent=today.title.replace(/^\d+ · /,"");
-  if($("homeTodayDur")) $("homeTodayDur").textContent=mins+" min";
-  if($("homeTodayTag")) $("homeTodayTag").textContent=today.tag||"";
-  if($("homeStartBtn")) $("homeStartBtn").onclick=function(){ startWorkout(today); };
+  var kind=todayKind(), today=todayWorkout(), sb=$("homeStartBtn");
+  if(kind==="pt"){
+    if($("homeTodayTitle")) $("homeTodayTitle").textContent="Unit PT day";
+    if($("homeTodayDur")) $("homeTodayDur").textContent="";
+    if($("homeTodayTag")) $("homeTodayTag").textContent="Your hard day — go get after it. PT is this week's intensity, so skip the MAF run today.";
+    if(sb) sb.style.display="none";
+  } else if(kind==="rest"){
+    if($("homeTodayTitle")) $("homeTodayTitle").textContent="Rest day";
+    if($("homeTodayDur")) $("homeTodayDur").textContent="";
+    if($("homeTodayTag")) $("homeTodayTag").textContent="Full rest — this is where the adaptation actually happens. Don't skip it.";
+    if(sb) sb.style.display="none";
+  } else {
+    var mins=Math.round(today.stages.reduce(function(a,s){return a+s.sec;},0)/60);
+    if($("homeTodayTitle")) $("homeTodayTitle").textContent=today.title.replace(/^\d+ · /,"");
+    if($("homeTodayDur")) $("homeTodayDur").textContent=mins+" min";
+    if($("homeTodayTag")) $("homeTodayTag").textContent=today.tag||"";
+    if(sb){ sb.style.display=""; sb.onclick=function(){ startWorkout(today); }; }
+  }
   if($("homeDate")) $("homeDate").textContent=new Date().toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
   if($("greet")){ var h=new Date().getHours(); $("greet").textContent=h<12?"Good morning":h<17?"Ready to run?":"Evening run?"; }
   var done=weekMinutes(weekStart(new Date())), target=weekTarget();
@@ -2515,18 +2548,15 @@ function weekStart(d){ var x=new Date(d); var day=(x.getDay()+6)%7; x.setHours(0
 /* ---- weekly aerobic-volume program: gentle ~10%/wk ramp, deload every 4th week (progress = MORE minutes, never higher HR) ---- */
 function weekMinutes(weekMs){ var m=0; SESSIONS.forEach(function(s){ if(weekStart(s.date)===weekMs) m+=(s.durationSec||0)/60; }); return Math.round(m); }
 function isDeloadWeek(){ return (Math.floor(weekStart(new Date())/6048e5) % 4) === 0; }
-function weekTarget(){
-  var lw=weekMinutes(weekStart(new Date())-6048e5), base=lw>0?lw:90;   // base off last week's actual; 90-min seed for new/rest weeks
-  if(isDeloadWeek()) return Math.round(base*0.65);                     // recovery week
-  if(lw<=0) return base;                                               // first active week: meet, don't ramp
-  return Math.round(Math.min(base*1.10, base+30));                     // ~10% progression, capped at +30 min/wk
-}
-function todayWorkout(){   // steady base by default; feature the MAF test only when monthly-due
-  var baseW=WORKOUTS.find(function(w){return w.id==="today";})||WORKOUTS[0];
-  var testW=WORKOUTS.find(function(w){return w.id==="maftest";});
-  if(!testW || !SESSIONS.length) return baseW;
-  var lastTest=0; SESSIONS.forEach(function(s){ if(s.isTest){ var t=new Date(s.date).getTime(); if(t>lastTest) lastTest=t; } });
-  return (Date.now()-lastTest > 28*864e5) ? testW : baseW;             // ~monthly benchmark, else easy base
+function scheduledWeekMinutes(){ var sum=0; for(var d=0; d<7; d++){ var id=WEEK_PLAN[d]; if(id==="pt"||id==="rest") continue; var w=WORKOUTS.find(function(x){return x.id===id;}); if(w) sum+=w.stages.reduce(function(a,s){return a+s.sec;},0)/60; } return Math.round(sum); }
+function weekTarget(){ var base=scheduledWeekMinutes()||90; return isDeloadWeek()?Math.round(base*0.65):base; }   // ring target = this week's planned MAF minutes (deload pulls it back)
+function testDue(){ if(!SESSIONS.length) return false; var hasTest=false, lt=0; SESSIONS.forEach(function(s){ if(s.isTest){ hasTest=true; var t=new Date(s.date).getTime(); if(t>lt) lt=t; } }); return hasTest ? (Date.now()-lt > 28*864e5) : (SESSIONS.length>=3); }
+function todayKind(){ var id=WEEK_PLAN[new Date().getDay()]; return (id==="pt"||id==="rest")?id:"workout"; }
+function todayWorkout(){
+  var id=WEEK_PLAN[new Date().getDay()], base=WORKOUTS.find(function(w){return w.id==="today";})||WORKOUTS[0];
+  if(id==="pt"||id==="rest") return base;                                  // fallback object; Home shows the PT/rest card instead
+  if(new Date().getDay()===1 && testDue()){ var t=WORKOUTS.find(function(w){return w.id==="maftest";}); if(t) return t; }   // monthly benchmark on a fresh Monday
+  return WORKOUTS.find(function(w){return w.id===id;})||base;
 }
 function weeklyVolume(){ var m={}; SESSIONS.forEach(function(s){ var z=s.derived&&s.derived.zoneSec; if(!z) return; var k=weekStart(s.date); m[k]=(m[k]||0)+(z.aerobic+z.sweet)/60; }); return Object.keys(m).map(Number).sort(function(a,b){return a-b;}).slice(-8).map(function(k){ return {t:k, v:Math.round(m[k])}; }); }
 function bestMaf(){ var b=null; SESSIONS.forEach(function(s){ if(s.mafSpeed!=null && (b==null||s.mafSpeed>b)) b=s.mafSpeed; }); return b; }
