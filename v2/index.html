@@ -2269,7 +2269,9 @@ function runEF(rec){   // avg speed / avg HR across intense stages (mph per bpm)
     if(mood==="intense" && s!=null && p.avg!=null && dur>0){ sp+=s*dur; hr+=p.avg*dur; sec+=dur; }
   });
   if(!sec || !hr) return null;
-  return (sp/sec)/(hr/sec);
+  var avgHr=hr/sec;
+  if(((rec.ceiling||140) - avgHr) > 12) return null;   // not a MAF-pace effort (e.g. a recovery run well below the cap) — EF here wouldn't validly project to the cap, so don't pollute the pace trend
+  return (sp/sec)/avgHr;
 }
 function runPaceAtMaf(rec){ var ef=runEF(rec); return ef==null?null:Math.round(ef*(rec.ceiling||140)*100)/100; }   // projected steady speed AT the cap
 function renderWeekStrip(){   // your planned week (Mon–Sun): run / PT / rest, today highlighted, ✓ when done
