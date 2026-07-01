@@ -789,6 +789,15 @@ const WORKOUTS = [
     ]
   },
   {
+    id:"zone2", title:"Zone 2 — 50 min", tag:"Steady aerobic endurance · comfortable & conversational · all under 140", isTest:false,
+    stages:[
+      {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:2, sec:300,  cue:"Easy walk — ease your HR up gently."},
+      {name:"Build",         type:"jog",  mood:"warmup",   speed:3.6, incline:2, sec:300,  cue:"Gentle jog — let your HR drift up toward the zone, no rush."},
+      {name:"Zone 2 hold",   type:"jog",  mood:"intense",  speed:3.7, incline:2, sec:2100, cue:"Settle into Zone 2 — comfortable, conversational, the kind of easy you could hold for hours. Sit in the low-to-mid 130s; if you drift past ~137, ease the speed — never touch 140. Time in the zone IS the workout: patience over pace."},
+      {name:"Cool-down walk",type:"walk", mood:"cooldown", speed:3.0, incline:2, sec:300,  cue:"Easy walk to bring your HR down."}
+    ]
+  },
+  {
     id:"recovery", title:"Recovery — 30 min", tag:"Short & gentle · low end of your zone · recovery around PT", isTest:false,
     stages:[
       {name:"Warm-up walk",  type:"walk", mood:"warmup",   speed:3.2, incline:2, sec:300,  cue:"Easy walk to loosen up."},
